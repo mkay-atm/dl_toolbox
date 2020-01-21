@@ -1,0 +1,9 @@
+Metadata-Version: 1.0
+Name: hpl2netCDF_client
+Version: 0.0.1
+Summary: Halo photonics Doppler lidar data to netCDF processing
+Author: Markus Kayser
+Author-email: Markus.Kayser@dwd.de
+License: non-commercial use only
+Description: UNKNOWN
+Platform: UNKNOWN
