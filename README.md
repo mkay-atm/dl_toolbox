@@ -1,8 +1,8 @@
 # Documentation - dl_toolbox
 
 ##### Table of Contents  
-1. [Purpose](#desc)  
-2. [Usage](#usage) 
+- [Purpose](#desc)  
+- [Usage](#usage) 
     - [Example](#example)
 
 
