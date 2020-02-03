@@ -428,22 +428,43 @@ def in_mag(x):
                     res= epsilon_val
                 return res
             
-def check_num_dir(n_rays,calc_idx,azimuth):
+# def check_num_dir(n_rays,calc_idx,azimuth):
+#     kk_idx= []
+#     for kk in range(0,len(calc_idx)-1):
+#         h, be = np.histogram(np.mod(azimuth[calc_idx[kk]],360), bins=2*n_rays, range=(0, 360))
+#         counts = np.sum(np.r_[h[-1], h[:-1]].reshape(-1, 2), axis=1) # rotate and sum
+#         edges = np.r_[np.r_[be[-2], be[:-2]][::2], be[-2]]         # rotate and skip
+#         kk_idx.append(np.all(counts/np.sum(counts)/(1/n_rays) > .8) * np.all(counts > 10))
+# #     print(np.all(kk_idx))
+#     return np.all(kk_idx), np.arange(0,360,360//n_rays), edges
+
+# def find_num_dir(n_rays,calc_idx,azimuth):
+#     if check_num_dir(n_rays,calc_idx,azimuth)[0]:
+#         return n_rays, check_num_dir(n_rays,calc_idx,azimuth)[1], check_num_dir(n_rays,calc_idx,azimuth)[2]
+#     else:
+#         print('number of directions to high...try' + str(n_rays//2) + '...instead of ' + str(n_rays//2))
+#         return find_num_dir(n_rays//2,calc_idx,azimuth)    
+    
+def check_num_dir(n_rays,calc_idx,azimuth,idx_valid):
     kk_idx= []
     for kk in range(0,len(calc_idx)-1):
-        h, be = np.histogram(np.mod(azimuth[calc_idx[kk]],360), bins=2*n_rays, range=(0, 360))
-        counts = np.sum(np.r_[h[-1], h[:-1]].reshape(-1, 2), axis=1) # rotate and sum
-        edges = np.r_[np.r_[be[-2], be[:-2]][::2], be[-2]]         # rotate and skip
-        kk_idx.append(np.all(counts/np.sum(counts)/(1/n_rays) > .8) * np.all(counts > 10))
-#     print(np.all(kk_idx))
+        if kk in set(idx_valid):
+            h, be = np.histogram(np.mod(azimuth[calc_idx[kk]],360), bins=2*n_rays, range=(0, 360))
+            counts = np.sum(np.r_[h[-1], h[:-1]].reshape(-1, 2), axis=1) # rotate and sum
+            edges = np.r_[np.r_[be[-2], be[:-2]][::2], be[-2]]         # rotate and skip
+            kk_idx.append(np.all(counts/np.sum(counts)/(1/n_rays) > .8) * np.all(counts > 10))
+#             print(np.all(kk_idx))
+        else:
+            continue
     return np.all(kk_idx), np.arange(0,360,360//n_rays), edges
 
-def find_num_dir(n_rays,calc_idx,azimuth):
-    if check_num_dir(n_rays,calc_idx,azimuth)[0]:
-        return n_rays, check_num_dir(n_rays,calc_idx,azimuth)[1], check_num_dir(n_rays,calc_idx,azimuth)[2]
+def find_num_dir(n_rays,calc_idx,azimuth,idx_valid):
+    if check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]:
+        return n_rays, check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[1], check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[2]
     else:
         print('number of directions to high...try' + str(n_rays//2) + '...instead of ' + str(n_rays//2))
-        return find_num_dir(n_rays//2,calc_idx,azimuth)    
+        return find_num_dir(n_rays//2,calc_idx,azimuth,idx_valid)   
+    
     
 ### the actual processing is done in this class
 class hpl2netCDFClient(object):
@@ -529,11 +550,24 @@ class hpl2netCDFClient(object):
                         ,datetime.timedelta(minutes= int(confDict['AVG_MIN'])))
         calc_idx= [np.where((ii <= time_ds)*(time_ds < iip1))
                                     for ii,iip1 in zip(time_vec[0:-1],time_vec[1::])]
+        
+#         time_start= np.array([int(pd.to_datetime(time_ds[t[0][-1]]).replace(tzinfo=datetime.timezone.utc).timestamp())
+#                             for t in calc_idx])
+#         time_bnds= np.array([[ int(pd.to_datetime(time_ds[t[0][0]]).replace(tzinfo=datetime.timezone.utc).timestamp())
+#                                 ,int(pd.to_datetime(time_ds[t[0][-1]]).replace(tzinfo=datetime.timezone.utc).timestamp())]
+#                                 for t in calc_idx]).T   
         time_start= np.array([int(pd.to_datetime(time_ds[t[0][-1]]).replace(tzinfo=datetime.timezone.utc).timestamp())
-                            for t in calc_idx])
+                              if len(t[0]) != 0 
+                              else int(pd.to_datetime(time_vec[ii+1]).replace(tzinfo=datetime.timezone.utc).timestamp())
+                              for ii,t in enumerate(calc_idx)
+                              ])
         time_bnds= np.array([[ int(pd.to_datetime(time_ds[t[0][0]]).replace(tzinfo=datetime.timezone.utc).timestamp())
                                 ,int(pd.to_datetime(time_ds[t[0][-1]]).replace(tzinfo=datetime.timezone.utc).timestamp())]
-                                for t in calc_idx]).T   
+                             if len(t[0]) != 0
+                             else [int(pd.to_datetime(time_vec[ii]).replace(tzinfo=datetime.timezone.utc).timestamp())
+                                 ,int(pd.to_datetime(time_vec[ii+1]).replace(tzinfo=datetime.timezone.utc).timestamp())]
+                                for ii,t in enumerate(calc_idx)
+                            ]).T
 
         # compare n_gates in lvl1-file and confdict
         if n_gates != dv.shape[1]:
@@ -542,7 +576,10 @@ class hpl2netCDFClient(object):
             print('number of gates changed to ' + str(n_gates))
             
         # infer number of directions
-        n_rays, azi_mean, azi_edges= find_num_dir(n_rays,calc_idx,azimuth)
+            # don't forget to check for empty calc_idx
+        time_valid= [ii for ii,x in enumerate(calc_idx) if len(x[0]) != 0]
+        
+        n_rays, azi_mean, azi_edges= find_num_dir(n_rays,calc_idx,azimuth,time_valid)
         azimuth[azimuth>azi_edges[0]]= azimuth[azimuth>azi_edges[0]]-360
         azi_edges[0]= azi_edges[0]-360
 
@@ -560,7 +597,8 @@ class hpl2netCDFClient(object):
         SIGMA_tot= np.where(np.zeros((len(calc_idx),n_gates)),np.nan,np.nan)
 
 
-        for kk in range(0,len(time_vec)-1):
+#         for kk in range(0,len(time_vec)-1):
+        for kk in time_valid:
             print('processed ' + str(np.floor(100*kk/(len(calc_idx)-1))) +' %')
             VR= dv[calc_idx[kk]]
             SNR= snr[calc_idx[kk]]
