@@ -8,7 +8,7 @@
 
 <a name="desc"/></a>
 ## Description
-Python software package for standardized processing Doppler wind lidar data.
+Python software package for standardized processing Doppler wind lidar data. (Note: the client is currently only applicable to Halo Photonics systems, but will be updated for Leosphere systems soon)
 
 <a name="usage"/></a>
 ## Usage
