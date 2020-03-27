@@ -207,13 +207,24 @@ def grouper(iterable, n, fillvalue=None):
     # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
     args = [iter(iterable)] * n
     return it.zip_longest(*args, fillvalue=fillvalue)
-def calc_node_degree(Vr,CNS_range):
+# def calc_node_degree(Vr,CNS_range):
+#     '''takes masked array as input'''
+#     f_abs_pairdiff = lambda x,y: op.abs(op.sub(x,y))<CNS_range
+#     with np.errstate(invalid='ignore'):
+#         return np.array(list(grouper(it.starmap(f_abs_pairdiff,((it.permutations(Vr.filled(np.nan),2)))),Vr.shape[0]-1))).sum(axis=1)
+
+def calc_node_degree_aliasing(Vr,CNS_range,B):
     '''takes masked array as input'''
-    f_abs_pairdiff = lambda x,y: op.abs(op.sub(x,y))<CNS_range
+    f_abs_pairdiff = lambda x,y: op.sub(B,op.abs(op.sub(op.abs(op.sub(x,y)),B)))<CNS_range
     with np.errstate(invalid='ignore'):
-        return np.array(list(grouper(it.starmap(f_abs_pairdiff,((it.permutations(Vr.filled(np.nan),2)))),Vr.shape[0]-1))).sum(axis=1)
+        return np.array(list(grouper(it.starmap(f_abs_pairdiff,((it.permutations(Vr.filled(np.nan),2)))),Vr.shape[0]-1))).sum(axis=1)    
+
+def diff_aa(x,y,c):
+    '''calculate aliasing independent differences'''
+    return (c-abs(abs(x-y)-c))    
     
-def consensus(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold):
+# def consensus(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold):
+def consensus(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold,B):
     '''
     consensus(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold)
         Calculate consensus average:
@@ -268,17 +279,28 @@ def consensus(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold):
 #                   ,np.apply_along_axis(np.diag,0,SNR>SNR_threshold).astype(int))
 #         ,axis=0)-(SNR>SNR_threshold).astype(int)
         
-        SUMlt= calc_node_degree(filter_by_snr(Vr,SNR,SNR_threshold),CNS_range)
+#         SUMlt= calc_node_degree(filter_by_snr(Vr,SNR,SNR_threshold),CNS_range)        
+#         mask_m= abs(Vr - np.ma.masked_where(
+#             ~((SUMlt[-(np.argmax(np.flipud(SUMlt),axis=0)+1),np.arange(0,SUMlt.shape[1])]/(SNR>SNR_threshold).sum(axis=0)*100 >= CNS_percentage)
+#               *((SNR>SNR_threshold).sum(axis=0)/SNR.shape[0]*100 >= 60.))
+#             ,Vr[-(np.argmax(np.flipud(SUMlt),axis=0)+1),np.arange(0,SUMlt.shape[1])])) < CNS_range
+#         Vr_m= np.ma.masked_where(~(mask_m.filled(False)),Vr)
+#         MEAN= np.ma.mean(Vr_m,axis=0).filled(np.nan)      
+#         IDX= mask_m
+#         UNC= np.nanstd(Vr-MEAN.T, axis=0)
+#         UNC[np.isnan(MEAN)]= np.nan
         
-        mask_m= abs(Vr - np.ma.masked_where(
+        SUMlt= calc_node_degree_aliasing(filter_by_snr(Vr,SNR,SNR_threshold),CNS_range,B)
+        V_max= np.ma.masked_where(
             ~((SUMlt[-(np.argmax(np.flipud(SUMlt),axis=0)+1),np.arange(0,SUMlt.shape[1])]/(SNR>SNR_threshold).sum(axis=0)*100 >= CNS_percentage)
               *((SNR>SNR_threshold).sum(axis=0)/SNR.shape[0]*100 >= 60.))
-            ,Vr[-(np.argmax(np.flipud(SUMlt),axis=0)+1),np.arange(0,SUMlt.shape[1])])) < CNS_range
-
-        Vr_m= np.ma.masked_where(~(mask_m.filled(False)),Vr)
-        MEAN= np.ma.mean(Vr_m,axis=0).filled(np.nan)      
+            ,Vr[-(np.argmax(np.flipud(SUMlt),axis=0)+1),np.arange(0,SUMlt.shape[1])])
+        mask_m= diff_aa(Vr,V_max,B)<3
+        Vr_m= np.ma.masked_where((mask_m),Vr).filled(Vr-np.sign(Vr-V_max)*2*B*np.heaviside(abs(Vr-V_max)-B,1))
+        Vr_m= np.ma.masked_where(~(mask_m),Vr_m)        
+        MEAN= Vr_m.mean(axis=0).filled(np.nan)
         IDX= mask_m
-        UNC= np.nanstd(Vr-MEAN.T, axis=0)
+        UNC= np.nanstd(Vr_m-MEAN.T, axis=0)
         UNC[np.isnan(MEAN)]= np.nan
         return MEAN, IDX, UNC  
     
@@ -445,27 +467,63 @@ def in_mag(x):
 #         print('number of directions to high...try' + str(n_rays//2) + '...instead of ' + str(n_rays//2))
 #         return find_num_dir(n_rays//2,calc_idx,azimuth)    
     
+# def check_num_dir(n_rays,calc_idx,azimuth,idx_valid):
+#     kk_idx= []
+#     for kk in range(0,len(calc_idx)-1):
+#         if kk in set(idx_valid):
+#             h, be = np.histogram(np.mod(azimuth[calc_idx[kk]],360), bins=2*n_rays, range=(0, 360))
+#             counts = np.sum(np.r_[h[-1], h[:-1]].reshape(-1, 2), axis=1) # rotate and sum
+#             edges = np.r_[np.r_[be[-2], be[:-2]][::2], be[-2]]         # rotate and skip
+# #             kk_idx.append(np.all(counts/np.sum(counts)/(1/n_rays) > .8) * np.all(counts > 10))
+#             kk_idx.append(np.all(counts >= 3))
+# #             print(np.all(kk_idx))
+#         else:
+#             continue
+#     return np.all(kk_idx), np.arange(0,360,360//n_rays), edges
+
+# # def find_num_dir(n_rays,calc_idx,azimuth,idx_valid):
+# #     if check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]:
+# #         return n_rays, check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[1], check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[2]
+# #     elif ~check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]:
+# #         print('number of directions to high...try' + str(n_rays//2) + '...instead of ' + str(n_rays))
+# #         return find_num_dir(n_rays//2,calc_idx,azimuth,idx_valid)
+# #     else:
+# #         print('number of directions to high...try' + str(4) + '...instead of ' + str(n_rays))
+# #         return find_num_dir(4,calc_idx,azimuth,idx_valid)
+
+# def find_num_dir(n_rays,calc_idx,azimuth,idx_valid):
+#     if check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]:
+#         return n_rays, check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[1], check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[2]
+#     elif ~check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]:
+#         if n_rays > 4:
+#             print('number of directions to high...try' + str(n_rays//2) + '...instead of ' + str(n_rays))
+#             return find_num_dir(n_rays//2,calc_idx,azimuth,idx_valid)
+#         elif n_rays < 4:
+#             print('number of directions to high...try' + str(4) + '...instead of ' + str(n_rays))
+#             return find_num_dir(4,calc_idx,azimuth,idx_valid)
+
 def check_num_dir(n_rays,calc_idx,azimuth,idx_valid):
-    kk_idx= []
-    for kk in range(0,len(calc_idx)-1):
-        if kk in set(idx_valid):
-            h, be = np.histogram(np.mod(azimuth[calc_idx[kk]],360), bins=2*n_rays, range=(0, 360))
-            counts = np.sum(np.r_[h[-1], h[:-1]].reshape(-1, 2), axis=1) # rotate and sum
-            edges = np.r_[np.r_[be[-2], be[:-2]][::2], be[-2]]         # rotate and skip
-            kk_idx.append(np.all(counts/np.sum(counts)/(1/n_rays) > .8) * np.all(counts > 10))
-#             print(np.all(kk_idx))
-        else:
-            continue
-    return np.all(kk_idx), np.arange(0,360,360//n_rays), edges
+    h, be = np.histogram(np.mod(azimuth[calc_idx[idx_valid]],360), bins=2*n_rays, range=(0, 360))
+    counts = np.sum(np.r_[h[-1], h[:-1]].reshape(-1, 2), axis=1) # rotate and sum
+    edges = np.r_[np.r_[be[-2], be[:-2]][::2], be[-2]]         # rotate and skip
+    kk_idx= counts >= 3
+    return kk_idx, np.arange(0,360,360//n_rays), edges
 
 def find_num_dir(n_rays,calc_idx,azimuth,idx_valid):
-    if check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]:
-        return n_rays, check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[1], check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[2]
-    else:
-        print('number of directions to high...try' + str(n_rays//2) + '...instead of ' + str(n_rays//2))
-        return find_num_dir(n_rays//2,calc_idx,azimuth,idx_valid)   
-    
-    
+    if np.all(check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]):
+        return np.all(check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]), n_rays, check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[1], check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[2]
+    elif ~np.all(check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]):
+        if n_rays > 4:
+            print('number of directions to high...try' + str(n_rays//2) + '...instead of ' + str(n_rays))
+            return find_num_dir(n_rays//2,calc_idx,azimuth,idx_valid)
+        elif n_rays < 4:
+            print('number of directions to high...try' + str(4) + '...instead' )
+            return find_num_dir(4,calc_idx,azimuth,idx_valid)
+        else:
+            print('not enough valid directions!-->skip non-convergent time windows' )
+            return np.all(check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]), n_rays, check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[1], check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[2]
+                    
+        
 ### the actual processing is done in this class
 class hpl2netCDFClient(object):
     def __init__(self, config_dir, cmd, date2proc):
@@ -504,7 +562,7 @@ class hpl2netCDFClient(object):
                     + date_chosen.strftime("%Y%m")
                   )
         #tub_dlidVAD143_l1_any_v00_20190607000000.nc
-        mylist= list(path.glob('**/' + confDict['NC_L1_BASENAME'] + '*' + date_chosen.strftime("%Y%m%d")+ '.nc'))
+        mylist= list(path.glob('**/' + confDict['NC_L1_BASENAME'] + '*' + date_chosen.strftime("%Y%m%d")+ '*.nc'))
         print(mylist[0])
         if len(mylist)>1:
             print('!!!multiple files found!!!, only first is processed!')
@@ -577,11 +635,11 @@ class hpl2netCDFClient(object):
             
         # infer number of directions
             # don't forget to check for empty calc_idx
-        time_valid= [ii for ii,x in enumerate(calc_idx) if len(x[0]) != 0]
+        time_valid= [ii for ii,x in enumerate(calc_idx) if len(x[0]) != 0]        
         
-        n_rays, azi_mean, azi_edges= find_num_dir(n_rays,calc_idx,azimuth,time_valid)
-        azimuth[azimuth>azi_edges[0]]= azimuth[azimuth>azi_edges[0]]-360
-        azi_edges[0]= azi_edges[0]-360
+#         n_rays, azi_mean, azi_edges= find_num_dir(n_rays,calc_idx,azimuth,time_valid)
+#         azimuth[azimuth>azi_edges[0]]= azimuth[azimuth>azi_edges[0]]-360
+#         azi_edges[0]= azi_edges[0]-360
 
         UVW= np.where(np.zeros((len(calc_idx),n_gates,3)),np.nan,np.nan)
         UVWunc= np.where(np.zeros((len(calc_idx),n_gates,3)),np.nan,np.nan)
@@ -600,16 +658,28 @@ class hpl2netCDFClient(object):
 #         for kk in range(0,len(time_vec)-1):
         for kk in time_valid:
             print('processed ' + str(np.floor(100*kk/(len(calc_idx)-1))) +' %')
-            VR= dv[calc_idx[kk]]
-            SNR= snr[calc_idx[kk]]
-            BETA= beta[calc_idx[kk]]
-            azi= azimuth[calc_idx[kk]]
-            ele= elevation[calc_idx[kk]]
-
-            if (len(azi_mean) > n_rays) | (len(azi_mean) < n_rays):
-                print('some issue with the data', n_rays, len(azi_mean))
+            
+#             try:
+#                 n_rays, azi_mean, azi_edges= find_num_dir(n_rays,calc_idx,azimuth,[kk])
+#                 azimuth[azimuth>azi_edges[0]]= azimuth[azimuth>azi_edges[0]]-360
+#                 azi_edges[0]= azi_edges[0]-360
+            indicator, n_rays, azi_mean, azi_edges= find_num_dir(n_rays,calc_idx,azimuth,kk)
+            azimuth[azimuth>azi_edges[0]]= azimuth[azimuth>azi_edges[0]]-360
+            azi_edges[0]= azi_edges[0]-360    
+#             if (len(azi_mean) > n_rays) | (len(azi_mean) < n_rays):
+#                 print('some issue with the data', n_rays, len(azi_mean))
+#                 continue
+            if ~indicator:
+                print('some issue with the data', n_rays, len(azi_mean), time_start[kk])
                 continue
             else:
+                
+                VR= dv[calc_idx[kk]]
+                SNR= snr[calc_idx[kk]]
+                BETA= beta[calc_idx[kk]]
+                azi= azimuth[calc_idx[kk]]
+                ele= elevation[calc_idx[kk]]                
+                
                 VR_CNSmax= np.where(np.zeros((len(azi_mean),n_gates)),np.nan,np.nan)
                 VR_CNSunc= np.where(np.zeros((len(azi_mean),n_gates)),np.nan,np.nan)
                 SNR_CNS= np.where(np.zeros((len(azi_mean),n_gates)),np.nan,np.nan)
@@ -623,11 +693,13 @@ class hpl2netCDFClient(object):
 
                     ele_cns[ii]= np.median(ele[azi_idx])
                     ## calculate consensus average
-                    VR_CNSmax[ii,:], idx_tmp, VR_CNSunc[ii,:] = consensus(VR[azi_idx],SNR[azi_idx]
-                                                                                ,3
-                                                                                ,60
-                                                                                #,int(confDict['SNR_THRESHOLD']) 
-                                                                                ,0
+                    VR_CNSmax[ii,:], idx_tmp, VR_CNSunc[ii,:] = consensus(VR[azi_idx]
+                                                                          ,np.ones(SNR[azi_idx].shape)
+#                                                                           ,SNR[azi_idx]
+                                                                                ,int(confDict['CNS_RANGE'])
+                                                                                ,int(confDict['CNS_PERCENTAGE'])
+                                                                                ,int(confDict['SNR_THRESHOLD']) 
+                                                                          ,B
                                                                                               )
                     azi_CNS[ii,:]= np.array([np.nanmean(azi[azi_idx][xi]) for xi in idx_tmp.T])
                     SNR_CNS[ii,:]= np.nanmean(np.where(idx_tmp
