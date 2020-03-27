@@ -189,10 +189,12 @@ class hpl_files(object):
                     mheader.update(tmp_tmp)
                 elif (header_info == False) & (counter_ii == 0) & (counter_jj == 0):
 #                     if (confDict['SCAN_TYPE'] == 'Stare') | (confDict['SCAN_TYPE'] == 'CSM'):
-                    if (confDict['SCAN_TYPE'] != 'VAD'):
-                        n_o_rays= (len(filename.open().read().splitlines())-17)//(int(mheader['Number of gates'])+1)
-                    else:
-                        n_o_rays= int(mheader['No. of rays in file'])
+#                     # this works 99 percent of the time, if no broken files are registered
+#                     if (confDict['SCAN_TYPE'] != 'VAD'):
+#                         n_o_rays= (len(filename.open().read().splitlines())-17)//(int(mheader['Number of gates'])+1)
+#                     else:
+#                         n_o_rays= int(mheader['No. of rays in file'])
+                    n_o_rays= (len(filename.open().read().splitlines())-17)//(int(mheader['Number of gates'])+1)
                     mbeam = np.recarray((n_o_rays,),
                                         dtype=np.dtype([('time', 'f8')
                                                , ('azimuth', 'f4')
@@ -217,16 +219,20 @@ class hpl_files(object):
                     if counter_ii == int(confDict['NUMBER_OF_GATES']):
                         counter_ii = 0
         
-        time_tmp= ((pd.to_datetime(datetime.datetime.strptime(mheader['Start time'], '%Y%m%d %H:%M:%S.%f').date())
-                                             +pd.to_timedelta(np.squeeze(mbeam['time']), unit = 'h')).astype(np.int64) / 10**9).values                                     
+#         time_tmp= ((pd.to_datetime(datetime.datetime.strptime(mheader['Start time'], '%Y%m%d %H:%M:%S.%f').date())
+#                                              +pd.to_timedelta(np.squeeze(mbeam['time']), unit = 'h')).astype(np.int64) / 10**9).values
+        time_tmp= pd.to_numeric(pd.to_timedelta(pd.DataFrame(mbeam)['time'], unit = 'h')
+                                +pd.to_datetime(datetime.datetime.strptime(mheader['Start time'], '%Y%m%d %H:%M:%S.%f').date())
+                               ).values / 10**9
         time_ds= [x+(datetime.timedelta(days=1)).total_seconds()
                     if time_tmp[0]-x>0 else x
                    for x in time_tmp]          
-        range_bnds= np.array([(np.squeeze(mdata['range gate'])[0,:]) * float(mheader['Range gate length (m)'])
-                                                    ,(np.squeeze(mdata['range gate'])[0,:] + 1.) * float(mheader['Range gate length (m)'])]
-                                                    ).T          
+        range_bnds= np.array([mdata['range gate'][0,:] * float(mheader['Range gate length (m)'])
+                                                    ,(mdata['range gate'][0,:] + 1.) * float(mheader['Range gate length (m)'])]
+                                                    ).T        
         tgint = 2*(range_bnds[0,1]-range_bnds[0,0]) / 3e8
-        SNR_tmp= np.copy(np.squeeze(mdata['snrp1']))-1
+#         SNR_tmp= np.copy(np.squeeze(mdata['snrp1']))-1
+        SNR_tmp= np.copy(mdata['snrp1'])-1
         SNR_tmp[SNR_tmp<=0]= np.nan
         ## calculate SNR in dB
         SNR_dB= 10*np.log10(np.ma.masked_values(SNR_tmp, np.nan)).filled(np.nan)
@@ -238,7 +244,8 @@ class hpl_files(object):
                                         ,1.316)
         return xr.Dataset({ 
                           'dv': (['time', 'range']
-                                , np.squeeze(mdata['velocity'])
+#                                 , np.squeeze(mdata['velocity'])
+                                , mdata['velocity']
                                 , {'units': 'm s-1'
                                   ,'long_name' : 'radial velocity of scatterers away from instrument' 
                                   ,'standard_name' : 'doppler_velocity'
@@ -258,7 +265,8 @@ class hpl_files(object):
                                   }
                                 )
                         , 'intensity': (['time', 'range']
-                                        , np.squeeze(mdata['snrp1'])
+#                                         , np.squeeze(mdata['snrp1'])
+                                        , mdata['snrp1']                                     
                                         , {'units': '1'
                                            ,'long_name' : 'backscatter intensity: b_int = snr+1, where snr denotes the signal-to-noise-ratio'
                                            ,'standard_name' : 'backscatter_intensity'
@@ -268,7 +276,8 @@ class hpl_files(object):
                                           }
                                        )
                         , 'beta': (['time', 'range']
-                                   , np.squeeze(mdata['beta'])
+#                                    , np.squeeze(mdata['beta'])
+                                   , mdata['snrp1']                               
                                    , {'units': 'm-1 sr-1'
                                      ,'long_name' : 'attenuated backscatter coefficient'
                                      ,'standard_name' : 'volume_attenuated_backwards_scattering_function_in_air'
@@ -278,7 +287,8 @@ class hpl_files(object):
                                      }
                                    )
                         , 'azi': ('time'
-                                 , np.squeeze(mbeam['azimuth'])
+#                                  , np.squeeze(mbeam['azimuth'])
+                                 , mbeam['azimuth']                               
                                  , {'units' : 'degree'
                                    ,'long_name' : 'sensor azimuth due reference point'
                                    ,'standard_name' : 'sensor_azimuth_angle'
@@ -286,7 +296,8 @@ class hpl_files(object):
                                    }
                                   )
                         , 'ele': ('time'
-                                 , np.squeeze(mbeam['elevation'])
+#                                  , np.squeeze(mbeam['elevation'])
+                                 , mbeam['elevation']                                  
                                  , {'units' : 'degree'
                                    ,'long_name' : 'beam direction due elevation'
                                    ,'standard_name' : 'elevation_angle'
@@ -294,7 +305,8 @@ class hpl_files(object):
                                    } 
                                   )
                         , 'zenith': ('time'
-                                    , 90-np.squeeze(mbeam['elevation'])
+#                                     , 90-np.squeeze(mbeam['elevation'])
+                                    , 90-mbeam['elevation']                                 
                                     , {'units' : 'degree'
                                       ,'long_name' : 'beam direction due zenith'
                                       ,'standard_name' : 'zenith_angle'
@@ -449,7 +461,7 @@ class hpl_files(object):
                                      ,'_CoordinateAxisType': 'Time'
                                      })
                                      ,'range': (['range']
-                                             , (np.squeeze(mdata['range gate'])[0,:] + 0.5) * float(mheader['Range gate length (m)'])
+                                             , (mdata['range gate'][0,:] + 0.5) * float(mheader['Range gate length (m)'])
                                              , {'units' : 'm'
                                              ,'long_name': 'line of sight distance towards the center of each range gate'
                                              ,'_FillValue': -999.
