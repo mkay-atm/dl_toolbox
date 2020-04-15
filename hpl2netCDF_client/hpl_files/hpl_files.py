@@ -277,7 +277,7 @@ class hpl_files(object):
                                        )
                         , 'beta': (['time', 'range']
 #                                    , np.squeeze(mdata['beta'])
-                                   , mdata['snrp1']                               
+                                   , mdata['beta']                               
                                    , {'units': 'm-1 sr-1'
                                      ,'long_name' : 'attenuated backscatter coefficient'
                                      ,'standard_name' : 'volume_attenuated_backwards_scattering_function_in_air'
