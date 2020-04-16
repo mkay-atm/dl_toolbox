@@ -323,8 +323,8 @@ def check_if_db(x):
         -----
         The method is only tested empirically and therefore not absolute.    
     '''
-    
-    return np.any((x<-1)|(x>25))
+    # return np.any((x<-1)|(x>25))
+    return np.any(x<-1)
                   
 def filter_by_snr(x,snr,snr_threshold):
     '''
