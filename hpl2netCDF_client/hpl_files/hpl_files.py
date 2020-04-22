@@ -295,15 +295,14 @@ class hpl_files(object):
                                    ,'comments' : 'sensor_azimuth_angle is the horizontal angle between the line of sight from the observation point to the sensor and a reference direction at the observation point, which is often due north. The angle is measured clockwise positive, starting from the reference direction. A comment attribute should be added to a data variable with this standard name to specify the reference direction. A standard name also exists for platform_azimuth_angle, where \"platform\" refers to the vehicle from which observations are made e.g. aeroplane, ship, or satellite. For some viewing geometries the sensor and the platform cannot be assumed to be close enough to neglect the difference in calculated azimuth angle.'
                                    }
                                   )
-                        , 'ele': ('time'
-#                                  , np.squeeze(mbeam['elevation'])
-                                 , mbeam['elevation']                                  
-                                 , {'units' : 'degree'
-                                   ,'long_name' : 'beam direction due elevation'
-                                   ,'standard_name' : 'elevation_angle'
-                                   ,'comments' : 'elevation angle of the beam to local horizone; a value of 90 is directly overhead'
-                                   } 
-                                  )
+#                         , 'ele': ('time'
+#                                  , mbeam['elevation']                                  
+#                                  , {'units' : 'degree'
+#                                    ,'long_name' : 'beam direction due elevation'
+#                                    ,'standard_name' : 'elevation_angle'
+#                                    ,'comments' : 'elevation angle of the beam to local horizone; a value of 90 is directly overhead'
+#                                    } 
+#                                   )
                         , 'zenith': ('time'
 #                                     , 90-np.squeeze(mbeam['elevation'])
                                     , 90-mbeam['elevation']                                 
@@ -368,7 +367,7 @@ class hpl_files(object):
                                 , {'long_name': 'system identification number'}
                                 )
                         , 'nrg': ([]
-                                , int(mheader['Number of gates'])
+                                , float(mheader['Number of gates'])
                                 , {'long_name': 'total number of range gates per ray'
                                   ,'units': '1'
                                   ,'_FillValue': -999.     
@@ -382,7 +381,7 @@ class hpl_files(object):
                                     }
                                   )
                         , 'nsmpl': ([]
-                                   , int(mheader['Gate length (pts)'])
+                                   , float(mheader['Gate length (pts)'])
                                    , {'long_name': 'points per range gate'
                                      ,'units': '1'
                                      }
@@ -395,14 +394,14 @@ class hpl_files(object):
                                    }
                                  )
                         , 'npls': ([]
-                                , int(confDict['PULSES_PER_DIRECTION'])#[int(mheader['Pulses/ray'])]
+                                , float(confDict['PULSES_PER_DIRECTION'])#[int(mheader['Pulses/ray'])]
                                 , {'long_name': 'number of pulses per ray'
                                   ,'units': '1'
                                   ,'_FillValue': -999.
                                   }
                                  )
                         , 'focus': ([]
-                                    , int(mheader['Focus range'])
+                                    , float(mheader['Focus range'])
                                     , {'units' : 'm'
                                       ,'long_name': 'telescope focus length'
                                       ,'_FillValue': -999.
