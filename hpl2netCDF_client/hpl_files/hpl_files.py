@@ -230,7 +230,7 @@ class hpl_files(object):
         range_bnds= np.array([mdata['range gate'][0,:] * float(mheader['Range gate length (m)'])
                                                     ,(mdata['range gate'][0,:] + 1.) * float(mheader['Range gate length (m)'])]
                                                     ).T        
-        tgint = 2*(range_bnds[0,1]-range_bnds[0,0]) / 3e8
+        tgint = (2*(range_bnds[0,1]-range_bnds[0,0]) / 3e8).astype('f4')
 #         SNR_tmp= np.copy(np.squeeze(mdata['snrp1']))-1
         SNR_tmp= np.copy(mdata['snrp1'])-1
         SNR_tmp[SNR_tmp<=0]= np.nan
@@ -255,7 +255,7 @@ class hpl_files(object):
                                   }
                                 )
                         , 'errdv': (['time', 'range']
-                                , sigma_tmp
+                                , sigma_tmp.astype('f4')
                                 , {'units': 'm s-1'
                                   ,'long_name' : 'error of Doppler velocity' 
                                   ,'standard_name' : 'doppler_velocity_error'
@@ -313,8 +313,8 @@ class hpl_files(object):
                                       }
                                     )
                         , 'lat': ([]
-                                 , float(confDict['SYSTEM_LATITUDE'])
-                                 , {'units': 'degree_north'
+                                 , np.float32(confDict['SYSTEM_LATITUDE'])
+                                 , {'units': 'degrees_north'
                                    ,'long_name': 'latitude'
                                    ,'standard_name': 'latitude'
                                    ,'comments': 'latitude of sensor'
@@ -322,8 +322,8 @@ class hpl_files(object):
                                    }
                                  )  
                         , 'lon': ([]
-                                 , float(confDict['SYSTEM_LONGITUDE'])
-                                 , {'units': 'degree_east'
+                                 , np.float32(confDict['SYSTEM_LONGITUDE'])
+                                 , {'units': 'degrees_east'
                                    ,'long_name': 'longitude'
                                    ,'standard_name': 'longitude'
                                    ,'comments': 'longitude of sensor'
@@ -331,7 +331,7 @@ class hpl_files(object):
                                    }
                                  )  
                         , 'zsl': ([]
-                                 , float(confDict['SYSTEM_ALTITUDE'])
+                                 , np.float32(confDict['SYSTEM_ALTITUDE'])
                                  , {'units': 'm'
                                    ,'comments': 'system altitude above mean sea level'
                                    ,'standard_name': 'altitude'
@@ -339,7 +339,7 @@ class hpl_files(object):
                                    }
                                  )
                         , 'wl': ([]
-                                , float(confDict['SYSTEM_WAVELENGTH'])
+                                , np.float32(confDict['SYSTEM_WAVELENGTH'])
                                 , {'units': 'm'
                                   ,'long_name': 'laser center wavelength'
                                   ,'standard_name': 'radiation_wavelength'
@@ -347,7 +347,7 @@ class hpl_files(object):
                                   }
                                 )
                         , 'pd': ([]
-                                , float(confDict['PULS_DURATION'])
+                                , np.float32(confDict['PULS_DURATION'])
                                 , {'units': 'seconds'
                                   ,'long_name': 'laser duration'
                                   ,'comments': 'duration of the transmitted pulse pd = 2 dr / c'
@@ -355,7 +355,7 @@ class hpl_files(object):
                                   }
                                 )
                         , 'nfft': ([]
-                                  , float(confDict['FFT_POINTS'])
+                                  , np.float32(confDict['FFT_POINTS'])
                                   , {'units': '1'
                                     ,'long_name': 'number of fft points'
                                     ,'comments': 'according to the manufacturer'
@@ -367,70 +367,70 @@ class hpl_files(object):
                                 , {'long_name': 'system identification number'}
                                 )
                         , 'nrg': ([]
-                                , float(mheader['Number of gates'])
+                                , np.float32(mheader['Number of gates'])
                                 , {'long_name': 'total number of range gates per ray'
                                   ,'units': '1'
                                   ,'_FillValue': -999.     
                                   }
                                  )
                         , 'lrg': ([]
-                                 , float(mheader['Range gate length (m)'])
+                                 , np.float32(mheader['Range gate length (m)'])
                                  , {'units' : 'm'
                                    ,'long_name': 'range gate length'
                                    ,'_FillValue': -999.           
                                     }
                                   )
                         , 'nsmpl': ([]
-                                   , float(mheader['Gate length (pts)'])
+                                   , np.float32(mheader['Gate length (pts)'])
                                    , {'long_name': 'points per range gate'
                                      ,'units': '1'
                                      }
                                      )
                         , 'prf': ([]
-                                 , float(confDict['PULS_REPETITION_FREQ'])
+                                 , np.float32(confDict['PULS_REPETITION_FREQ'])
                                  , {'units' : 's-1'
                                    ,'long_name': 'pulse repetition frequency'
                                    ,'_FillValue': -999.
                                    }
                                  )
                         , 'npls': ([]
-                                , float(confDict['PULSES_PER_DIRECTION'])#[int(mheader['Pulses/ray'])]
+                                , np.float32(confDict['PULSES_PER_DIRECTION'])#[int(mheader['Pulses/ray'])]
                                 , {'long_name': 'number of pulses per ray'
                                   ,'units': '1'
                                   ,'_FillValue': -999.
                                   }
                                  )
                         , 'focus': ([]
-                                    , float(mheader['Focus range'])
+                                    , np.float32(mheader['Focus range'])
                                     , {'units' : 'm'
                                       ,'long_name': 'telescope focus length'
                                       ,'_FillValue': -999.
                                       }
                                     )
                         , 'resv': ([]
-                                  , float(mheader['Resolution (m/s)'])
+                                  , np.float32(mheader['Resolution (m/s)'])
                                   , {'units' : 'm s-1'
                                     ,'long_name': 'resolution of Doppler velocity'
                                     ,'_FillValue': -999.
                                     }
                                   )
-                        , 'nqf': ([], float(mheader['Gate length (pts)'])/tgint/2
+                        , 'nqf': ([], (np.float32(mheader['Gate length (pts)'])/tgint/2).astype('f4')
                                              , {'long_name': 'nyquist frequency'
                                                 , 'comments' : 'half of the detector sampling frequency; detector bandwidth'
                                                 }
                                      )
-                        , 'nqv': ([], float(mheader['Gate length (pts)'])/tgint/2*float(confDict['SYSTEM_WAVELENGTH'])/2
+                        , 'nqv': ([], (np.float32(mheader['Gate length (pts)'])/tgint/2*np.float32(confDict['SYSTEM_WAVELENGTH'])/2).astype('f4')
                                 , {'long_name': 'nyquist velocity'
                                   ,'comments' : 'nq_freq*lambda/2; signal bandwidth'
                                   }
                                  )
-                        , 'smplf': ([], float(mheader['Gate length (pts)'])/tgint
+                        , 'smplf': ([], np.float32(mheader['Gate length (pts)'])/tgint
                                    , {'long_name': 'sampling frequency'
                                      ,'units': 's-1'
                                      ,'comments' : 'nsmpl / tgint'
                                      }
                                    )
-                        , 'resf': ([], float(mheader['Gate length (pts)'])/tgint/float(confDict['FFT_POINTS'])
+                        , 'resf': ([], (np.float32(mheader['Gate length (pts)'])/tgint/float(confDict['FFT_POINTS'])).astype('f4')
                                    , {'long_name': 'frequency resolution'
                                      ,'units': 's-1'
                                      ,'comments' : 'smplf / nfft'
@@ -443,7 +443,7 @@ class hpl_files(object):
                                      }
                                    )
                        , 'range_bnds': (['range','nv']
-                                        ,  range_bnds
+                                        ,  range_bnds.astype('f4')
                                         , {'units': 'm'
                                           ,'_FillValue' : -999.
                                           }
@@ -454,13 +454,13 @@ class hpl_files(object):
                         , coords= {  'time': ( ['time']
                                     , time_ds#.astype(np.float64)
                                     ,{'units': 'seconds since 1970-01-01 00:00:00' 
-                                     ,'standard_name': 'time'
+                                     ,'standard_name': 'Time'
                                      ,'long_name': 'time'
                                      ,'calendar':'gregorian'
                                      ,'_CoordinateAxisType': 'Time'
                                      })
                                      ,'range': (['range']
-                                             , (mdata['range gate'][0,:] + 0.5) * float(mheader['Range gate length (m)'])
+                                             , ((mdata['range gate'][0,:] + 0.5) * np.float32(mheader['Range gate length (m)'])).astype('f4')
                                              , {'units' : 'm'
                                              ,'long_name': 'line of sight distance towards the center of each range gate'
                                              ,'_FillValue': -999.
