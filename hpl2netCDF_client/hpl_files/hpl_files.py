@@ -128,8 +128,12 @@ class hpl_files(object):
                     + (hpl_list.time[0]).strftime("%Y") + '/'
                     + (hpl_list.time[0]).strftime("%Y%m"))
         path.mkdir(parents=True, exist_ok=True)
-        path= path / Path(confDict['NC_L1_BASENAME'] + 'v' + confDict['VERSION'] + '_'  + (hpl_list.time[0]).strftime("%Y%m%d")+ '.nc')                                                               
-        ds.to_netcdf(path,unlimited_dims={'time':True})
+        path= path / Path(confDict['NC_L1_BASENAME'] + 'v' + confDict['VERSION'] + '_'  + (hpl_list.time[0]).strftime("%Y%m%d")+ '.nc')
+        
+        # compress variables
+        comp = dict(zlib=True, complevel=9)
+        encoding = {var: comp for var in np.hstack([ds.data_vars,ds.coords])}
+        ds.to_netcdf(path,unlimited_dims={'time':True},encoding=encoding)
         ds.close()
         return path
     
