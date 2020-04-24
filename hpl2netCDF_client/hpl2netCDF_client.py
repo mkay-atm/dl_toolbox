@@ -292,7 +292,8 @@ def consensus(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold,B):
         
         SUMlt= calc_node_degree_aliasing(filter_by_snr(Vr,SNR,SNR_threshold),CNS_range,B)
         V_max= np.ma.masked_where(
-            ~((SUMlt[-(np.argmax(np.flipud(SUMlt),axis=0)+1),np.arange(0,SUMlt.shape[1])]/(SNR>SNR_threshold).sum(axis=0)*100 >= CNS_percentage)
+            ~((SUMlt[-(np.argmax(np.flipud(SUMlt),axis=0)+1)
+                     , np.arange(0,SUMlt.shape[1])]/(SNR>SNR_threshold).sum(axis=0)*100 >= CNS_percentage)
               *((SNR>SNR_threshold).sum(axis=0)/SNR.shape[0]*100 >= 60.))
             ,Vr[-(np.argmax(np.flipud(SUMlt),axis=0)+1),np.arange(0,SUMlt.shape[1])])
         mask_m= diff_aa(Vr,V_max,B)<3
@@ -323,9 +324,10 @@ def check_if_db(x):
         -----
         The method is only tested empirically and therefore not absolute.    
     '''
+    
     # return np.any((x<-1)|(x>25))
-    return np.any(x<-1)
-                  
+    return np.any(x<-1)   
+
 def filter_by_snr(x,snr,snr_threshold):
     '''
     filter_by_snr(X,SNR,SNR_threshold)
@@ -821,10 +823,10 @@ class hpl2netCDFClient(object):
         ## save processed data to netCDF
         
         ds_lvl2= xr.Dataset({ 'wspeed': (['time', 'height']
-                                        , speed
+                                        , np.float32(speed)
                                         , {'units': 'm s-1'
-                                        ,'long_name' : 'wind speed' 
-                                        ,'standard_name' : 'wind_speed'
+                                        , 'standard_name' : 'wind_speed'
+                                        , 'long_name' : 'Wind Speed' 
                                         ,'_FillValue' : -999.
                                         }
                                         )
@@ -843,70 +845,79 @@ class hpl2netCDFClient(object):
                                         )
 
                             ,'errwspeed': (['time', 'height']
-                                        , errspeed
+                                        , np.float32(errspeed)
                                         , {'units': 'm s-1'
-                                        ,'long_name' : 'wind speed uncertainty'
-                                        ,'_FillValue' : -999.
+                                        , 'standard' : 'wind_speed_uncertainty'
+                                        , 'long_name' : 'Wind Speed Uncertainty'
+                                        , '_FillValue' : -999.
                                         }
                                         )
                             ,'u': (['time', 'height']
-                                        , u
+                                        , np.float32(u)
                                         , {'units': 'm s-1'
-                                        ,'long_name' : 'eastward wind'
-                                        ,'_FillValue' : -999.
+                                        , 'standard_name' : 'eastward_wind'
+                                        , 'long_name' : 'Zonal Wind'
+                                        , '_FillValue' : -999.
                                         }
                                         )
                             ,'erru': (['time', 'height']
-                                        , erru
+                                        , np.float32(erru)
                                         , {'units': 'm s-1'
-                                        ,'long_name' : 'eastward wind uncertainty'
+                                        , 'standard_name' : 'eastward_wind_uncertainty'
+                                        , 'long_name' : 'Zonal Wind Uncertainty'
                                         ,'_FillValue' : -999.
                                         }
                                         )
                             ,'v': (['time', 'height']
-                                        , v
+                                        , np.float32(v)
                                         , {'units': 'm s-1'
-                                        ,'long_name' : 'northward wind'
+                                        , 'standard_name' : 'northward_wind'
+                                        , 'long_name' : 'Meridional Wind'
                                         ,'_FillValue' : -999.
                                         }
                                         )
                             ,'errv': (['time', 'height']
-                                        , errv
+                                        , np.float32(errv)
                                         , {'units': 'm s-1'
-                                        ,'long_name' : 'northward wind uncertainty'
-                                        ,'_FillValue' : -999.
+                                        , 'standard_name' : 'northward_wind_uncertainty'
+                                        , 'long_name' : 'Meridional Wind Uncertainty'
+                                        , '_FillValue' : -999.
                                         }
                                         )
                             ,'w': (['time', 'height']
-                                        , w
+                                        , np.float32(w)
                                         , {'units': 'm s-1'
-                                        ,'long_name' : 'upward air velocity'
-                                        ,'_FillValue' : -999.
+                                        , 'standard_name' : 'upward_air_velocity'
+                                        , 'long_name' : 'Upward Air Velocity'
+                                        , '_FillValue' : -999.
                                         }
                                         )
                             ,'errw': (['time', 'height']
-                                        , errw
+                                        , np.float32(errw)
                                         , {'units': 'm s-1'
-                                        ,'long_name' : 'upward air velocity uncertainty'
+                                        , 'standard_name' : 'upward_air_velocity_uncertainty'
+                                        , 'long_name' : 'Upward Air Velocity Uncertainty'
                                         ,'_FillValue' : -999.
                                         }
                                         )
                             ,'wdir': (['time', 'height']
-                                        , wdir
+                                        , np.float32(wdir)
                                         , {'units': 'degree'
-                                        ,'long_name' : 'wind direction'
+                                        , 'standard_name' : 'wind_from_direction'
+                                        , 'long_name' : 'Wind Direction'
                                         ,'_FillValue' : -999.
                                         }
                                         )
                             ,'errwdir': (['time', 'height']
-                                        , errwdir
+                                        , np.float32(errwdir)
                                         , {'units': 'degree'
-                                        ,'long_name' : 'wind direction uncertainty'
+                                        , 'standard_name' : 'wind_direction_uncertainty'
+                                        , 'long_name' : 'Wind Direction Uncertainty'
                                         ,'_FillValue' : -999.
                                         }
                                         )
                             ,'r2': (['time', 'height']
-                                        , r2
+                                        , np.float32(r2)
                                         , {'comments' : 'coefficient of determination - provides a measure of how well observed radial velocities are replicated by the model used to determine u,v,w wind components from the measured line of sight radial velocities'
                                             ,'long_name': 'coefficient of determination'
                                             ,'units': '1'
@@ -914,7 +925,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )  
                             ,'nvrad': (['time', 'height']
-                                        , nvrad
+                                        , np.float32(nvrad)
                                         , {'comments' : 'number of (averaged) radial velocities used for wind calculation'
                                             ,'long_name': 'number of radial velocities'
                                             ,'units': '1'
@@ -922,33 +933,35 @@ class hpl2netCDFClient(object):
                                         }
                                         )  
                             ,'cn': (['time', 'height']
-                                        , cn
+                                        , np.float32(cn)
                                         , {'comments' : 'condition number - provides a measure for the degree of collinearity among the Doppler velocity measurements used for the retrieval of the wind variables (u,v,w,speed,direction).'
-                                            ,'long_name': 'condition number'
-                                            ,'units': '1'
-                                            ,'_FillValue': -999.
+                                            
+                                           , 'standard_name': 'condition_number'
+                                           , 'long_name': 'Condition Number'
+                                           , 'units': '1'
+                                           , '_FillValue': -999.
                                         }
                                         ) 
                             , 'lat': ([]
-                                        , float(confDict['SYSTEM_LATITUDE'])
-                                        , {'units': 'degree_north'
+                                        , np.float32(confDict['SYSTEM_LATITUDE'])
+                                        , {'units': 'degrees_north'
                                         ,'long_name': 'latitude'
                                         ,'standard_name': 'latitude'
                                         ,'comments': 'latitude of sensor'
-                                        ,'_FillValue': -999.999
+                                        ,'_FillValue': -999.
                                         }
                                         )  
                             , 'lon': ([]
-                                        , float(confDict['SYSTEM_LONGITUDE'])
-                                        , {'units': 'degree_east'
+                                        , np.float32(confDict['SYSTEM_LONGITUDE'])
+                                        , {'units': 'degrees_east'
                                         ,'long_name': 'longitude'
                                         ,'standard_name': 'longitude'
                                         ,'comments': 'longitude of sensor'
-                                        ,'_FillValue': -999.999
+                                        ,'_FillValue': -999.
                                         }
                                         )  
                             , 'zsl': ([]
-                                        , float(confDict['SYSTEM_ALTITUDE'])
+                                        , np.float32(confDict['SYSTEM_ALTITUDE'])
                                         , {'units': 'm'
                                         ,'comments': 'system altitude above mean sea level'
                                         ,'standard_name': 'altitude'
@@ -966,7 +979,7 @@ class hpl2netCDFClient(object):
                                             #             ,((np.arange(0,n_gates) + 1.)
                                             #             * float(confDict['RANGE_GATE_LENGTH'])*np.sin(np.nanmedian(elevation)*np.pi/180))
                                             #             ]).T
-                                            , height_bnds
+                                            , np.float32(height_bnds)
                                             ,{'units': 'm'                                         
                                             }
                                             )
@@ -974,7 +987,7 @@ class hpl2netCDFClient(object):
                             , coords= { 'height': (['height']
                                                     # ,((np.arange(0,n_gates)+.5)*int(confDict['RANGE_GATE_LENGTH'])
                                                     # *np.sin(np.nanmedian(elevation)*np.pi/180))
-                                                    , height
+                                                    , np.float32(height)
                                                     ,{'units': 'm'
                                                     ,'standard_name': 'height'
                                                     ,'comments': 'vertical distance from sensor to center of measurement'
@@ -985,7 +998,7 @@ class hpl2netCDFClient(object):
                                                 , time_start.astype(np.float64)
                                                 , {  'units': 'seconds since 1970-01-01 00:00:00' 
                                                     ,'standard_name': 'time'
-                                                    ,'long_name': 'time'
+                                                    ,'long_name': 'Time'
                                                     ,'calendar':'gregorian'
                                                     ,'bounds': 'time_bnds'
                                                     ,'_CoordinateAxisType': 'Time'
@@ -1013,7 +1026,11 @@ class hpl2netCDFClient(object):
         path= path / Path(confDict['NC_L2_BASENAME'] + 'v' +  confDict['VERSION'] + '_' + date_chosen.strftime("%Y%m%d") + '.nc')
 
         print(path)
-        ds_lvl2.to_netcdf(path,unlimited_dims={'time':True})
+        # compress variables
+        comp = dict(zlib=True, complevel=9)
+        encoding = {var: comp for var in np.hstack([ds_lvl2.data_vars,ds_lvl2.coords])}
+        
+        ds_lvl2.to_netcdf(path, unlimited_dims={'time':True}, encoding=encoding)
         print(path)
         print(ds_lvl2.info)
         ds_lvl2.close()
