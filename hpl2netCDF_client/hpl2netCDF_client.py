@@ -913,23 +913,25 @@ class hpl2netCDFClient(object):
                                         , {'units': 'degree'
                                         , 'standard_name' : 'wind_direction_uncertainty'
                                         , 'long_name' : 'Wind Direction Uncertainty'
-                                        ,'_FillValue' : -999.
+                                        , '_FillValue' : -999.
                                         }
                                         )
                             ,'r2': (['time', 'height']
                                         , np.float32(r2)
                                         , {'comments' : 'coefficient of determination - provides a measure of how well observed radial velocities are replicated by the model used to determine u,v,w wind components from the measured line of sight radial velocities'
-                                            ,'long_name': 'coefficient of determination'
-                                            ,'units': '1'
-                                            ,'_FillValue': -999.
+                                            , 'long_name': 'coefficient of determination'
+                                            , 'standard_name': 'coefficient_of_determination'
+                                            , 'units': '1'
+                                            , '_FillValue': -999.
                                         }
                                         )  
                             ,'nvrad': (['time', 'height']
                                         , np.float32(nvrad)
                                         , {'comments' : 'number of (averaged) radial velocities used for wind calculation'
-                                            ,'long_name': 'number of radial velocities'
-                                            ,'units': '1'
-                                            ,'_FillValue': -999.
+                                            , 'long_name': 'number of radial velocities'
+                                            , 'standard_name': 'no_radial_velocities'
+                                            , 'units': '1'
+                                            , '_FillValue': -999.
                                         }
                                         )  
                             ,'cn': (['time', 'height']
