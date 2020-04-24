@@ -550,7 +550,7 @@ class hpl2netCDFClient(object):
             print('combining files to daily lvl1...')
             print(' ...')
         read_idx= hpl_files.reader_idx(hpl_list,confDict,chunks=False)
-        nc_name= hpl_files.combine_lvl1(hpl_list,confDict,read_idx)
+        nc_name= hpl_files.combine_lvl1(hpl_list,confDict,read_idx,date_chosen)
         print(nc_name)
         ds_tmp= xr.open_dataset(nc_name)
         print(ds_tmp.info)
