@@ -108,7 +108,7 @@ class hpl_files(object):
         if chunks == False:
             return np.arange(0,len(hpl_list.time))
     
-    def combine_lvl1(hpl_list,confDict,read_idx):
+    def combine_lvl1(hpl_list, confDict, read_idx, date_chosen):
         ds= xr.concat((hpl_files.read_hpl(hpl_list.name[idx],confDict) for ii,idx in enumerate(read_idx))
                           ,dim='time'#, combine='nested'#,compat='identical'
                           ,data_vars='minimal'
@@ -125,15 +125,16 @@ class hpl_files(object):
         # adjust time variable to double (aka float64)
         ds.time.data.astype(np.float64)
         path= Path(confDict['NC_L1_PATH'] + '/'
-                    + (hpl_list.time[0]).strftime("%Y") + '/'
-                    + (hpl_list.time[0]).strftime("%Y%m"))
+                    + date_chosen.strftime("%Y") + '/'
+                    + date_chosen.strftime("%Y%m"))
         path.mkdir(parents=True, exist_ok=True)
-        path= path / Path(confDict['NC_L1_BASENAME'] + 'v' + confDict['VERSION'] + '_'  + (hpl_list.time[0]).strftime("%Y%m%d")+ '.nc')
+        path= path / Path(confDict['NC_L1_BASENAME'] + 'v' + confDict['VERSION'] + '_'  + date_chosen.strftime("%Y%m%d")+ '.nc')
         
         # compress variables
         comp = dict(zlib=True, complevel=9)
         encoding = {var: comp for var in np.hstack([ds.data_vars,ds.coords])}
-        ds.to_netcdf(path,unlimited_dims={'time':True},encoding=encoding)
+        ds.to_netcdf(path, encoding=encoding)
+#         ds.to_netcdf(path, unlimited_dims={'time':True}, encoding=encoding)
         ds.close()
         return path
     
@@ -255,7 +256,7 @@ class hpl_files(object):
                                   ,'standard_name' : 'doppler_velocity'
                                   ,'comments' : 'A velocity is a vector quantity; the component of the velocity of the scatterers along the line of sight of the instrument where positive implies movement away from the instrument'
                                   ,'_FillValue': -999.
-                                  ,'_CoordinateAxes': ['time','range']
+                                  ,'_CoordinateAxes': 'time range'
                                   }
                                 )
                         , 'errdv': (['time', 'range']
@@ -265,7 +266,7 @@ class hpl_files(object):
                                   ,'standard_name' : 'doppler_velocity_error'
                                   ,'comments' : 'error of radial velocity calculated from Cramer-Rao lower bound (CRLB)'
                                   ,'_FillValue': -999.
-                                  ,'_CoordinateAxes': ['time','range']
+                                  ,'_CoordinateAxes': 'time range'
                                   }
                                 )
                         , 'intensity': (['time', 'range']
@@ -276,7 +277,7 @@ class hpl_files(object):
                                            ,'standard_name' : 'backscatter_intensity'
                                            ,'comments' : 'backscatter intensity: b_int = snr+1'
                                            ,'_FillValue': -999.
-                                           ,'_CoordinateAxes': ['time','range']
+                                           ,'_CoordinateAxes': 'time range'
                                           }
                                        )
                         , 'beta': (['time', 'range']
@@ -287,7 +288,7 @@ class hpl_files(object):
                                      ,'standard_name' : 'volume_attenuated_backwards_scattering_function_in_air'
                                      ,'comments' : 'determined from SNR by means of lidar equation; uncalibrated and uncorrected'  
                                      ,'_FillValue': -999.
-                                     ,'_CoordinateAxes': ['time','range']
+                                     ,'_CoordinateAxes': 'time range'
                                      }
                                    )
                         , 'azi': ('time'
@@ -296,6 +297,7 @@ class hpl_files(object):
                                  , {'units' : 'degree'
                                    ,'long_name' : 'sensor azimuth due reference point'
                                    ,'standard_name' : 'sensor_azimuth_angle'
+                                   ,'_CoordinateAxes': 'time'
                                    ,'comments' : 'sensor_azimuth_angle is the horizontal angle between the line of sight from the observation point to the sensor and a reference direction at the observation point, which is often due north. The angle is measured clockwise positive, starting from the reference direction. A comment attribute should be added to a data variable with this standard name to specify the reference direction. A standard name also exists for platform_azimuth_angle, where \"platform\" refers to the vehicle from which observations are made e.g. aeroplane, ship, or satellite. For some viewing geometries the sensor and the platform cannot be assumed to be close enough to neglect the difference in calculated azimuth angle.'
                                    }
                                   )
@@ -313,6 +315,7 @@ class hpl_files(object):
                                     , {'units' : 'degree'
                                       ,'long_name' : 'beam direction due zenith'
                                       ,'standard_name' : 'zenith_angle'
+                                      ,'_CoordinateAxes': 'time'
                                       ,'comments' : 'zenith angle of the beam to the local vertical; a value of zero is directly overhead'
                                       }
                                     )
@@ -366,10 +369,10 @@ class hpl_files(object):
                                     ,'_FillValue': -999.
                                     }
                                    )
-                        , 'id': ([]
-                                , confDict['SYSTEM_ID']
-                                , {'long_name': 'system identification number'}
-                                )
+#                         , 'id': ([]
+#                                 , confDict['SYSTEM_ID']
+#                                 , {'long_name': 'system identification number'}
+#                                 )
                         , 'nrg': ([]
                                 , np.float32(mheader['Number of gates'])
                                 , {'long_name': 'total number of range gates per ray'
@@ -458,16 +461,17 @@ class hpl_files(object):
                         , coords= {  'time': ( ['time']
                                     , time_ds#.astype(np.float64)
                                     ,{'units': 'seconds since 1970-01-01 00:00:00' 
-                                     ,'standard_name': 'Time'
-                                     ,'long_name': 'time'
+                                     ,'standard_name': 'time'
+                                     ,'long_name': 'Time'
                                      ,'calendar':'gregorian'
-                                     ,'_CoordinateAxisType': 'Time'
+                                     ,'_CoordinateAxisType': 'time'
                                      })
                                      ,'range': (['range']
                                              , ((mdata['range gate'][0,:] + 0.5) * np.float32(mheader['Range gate length (m)'])).astype('f4')
                                              , {'units' : 'm'
                                              ,'long_name': 'line of sight distance towards the center of each range gate'
                                              ,'_FillValue': -999.
+                                             ,'_CoordinateAxisType': 'range'
                                                 }
                                                 )
                                    , 'nv': (['nv'],np.arange(0,2).astype(np.int8))
