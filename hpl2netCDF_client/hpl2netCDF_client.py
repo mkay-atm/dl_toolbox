@@ -1141,7 +1141,7 @@ class hpl2netCDFClient(object):
             path= Path(confDict['NC_L2_QL_PATH'] + '/' + d.strftime('%Y') + '/' + d.strftime('%Y%m'))
             path.mkdir(parents=True,exist_ok=True)
             fig.savefig(str('{}/' + confDict['NC_L2_BASENAME'] + 'ql_' + d.strftime('%Y%m%d') + '_' + str(confDict['AVG_MIN']) + 'min' + '.png').format(path)
-                        ,transparent=True, bbox_inches='tight')
+                        ,transparent=False, bbox_inches='tight')
 
         
  
