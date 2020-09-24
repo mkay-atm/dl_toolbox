@@ -19,6 +19,7 @@ setup(name='hpl2netCDF_client',
       packages=['hpl2netCDF_client','hpl2netCDF_client.hpl_files','hpl2netCDF_client.config'],
       install_requires=[
           'numpy',
+          'scipy',
           'xarray',
           'pandas',
           'datetime',
