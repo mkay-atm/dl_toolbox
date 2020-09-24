@@ -27,6 +27,7 @@ from pathlib import Path
 # import 
 from hpl2netCDF_client.hpl_files.hpl_files import hpl_files
 from hpl2netCDF_client.config.config import config
+from scipy.linalg import diagsvd, svdvals
 
 ### functions used for plotting
 def cmap_discretize(cmap, N):
@@ -90,20 +91,29 @@ def uvw_2_dir(uvw,uvw_unc):
 
 def calc_sigma_single(SNR_dB,Mpts,nsmpl,BW,delta_v):
     'calculates the instrument uncertainty: SNR in dB!'
-    SNR_dB = np.ma.masked_values(SNR_dB, np.nan)
+    # SNR_dB = np.ma.masked_values(SNR_dB, np.nan)
+    # SNR_dB = np.ma.masked_invalid(SNR_dB)
     SNR= 10**(SNR_dB/10)
-    
     bb = np.sqrt(2.*np.pi)*(delta_v/BW)
     alpha = SNR/bb
     Np = Mpts*nsmpl*SNR
         
-    a1 = (2.*np.sqrt(np.sqrt(np.pi)/alpha)).filled(np.nan)
-    a2 = (1+0.16*alpha).filled(np.nan)
-    a3 = (delta_v/np.sqrt(Np)).filled(np.nan) ##here, Cramer Rao lower bound!
-    SNR= SNR.filled(np.nan)
-    sigma= np.where(~np.isnan(SNR)
-                    ,np.where(SNR_dB <= -5., (a1*a2*a3), a3)
-                    ,np.nan)
+    # a1 = (2.*np.sqrt(np.sqrt(np.pi)/alpha)).filled(np.nan)
+    # a1 = 2.*np.sqrt( np.divide(np.sqrt(np.pi), alpha
+    #                , out=np.full((alpha.shape), np.nan)
+    #                , where=alpha!=0)
+    #                )
+    a1 = 2.*(np.sqrt(np.ma.divide(np.sqrt(np.pi), alpha)))#.filled(np.nan)
+    a2 = (1+0.16*alpha)#.filled(np.nan)
+    a3 = np.ma.divide(delta_v, np.sqrt(Np))#.filled(np.nan) ##here, Cramer Rao lower bound!
+    SNR= SNR#.filled(np.nan)
+    sigma = np.ma.masked_where(  SNR_dB > -5
+                                , (a1*a2*a3).filled(np.nan)
+                                ).filled(a3.filled(np.nan))
+
+    # sigma= np.where(~np.isnan(SNR)
+    #                 ,np.where(SNR_dB <= -5., (a1*a2*a3), a3)
+    #                 ,np.nan)
     return sigma
     
 def log10_inf(x):
@@ -121,11 +131,11 @@ def consensus_mean(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold):
         Vr_X= np.expand_dims(Vr, axis=0)
         AjdM = (abs(np.einsum('ij... -> ji...',Vr_X)-Vr_X)<CNS_range).astype(int)
         SUMlt= np.sum(AjdM, axis=0)
-        X= np.sum(np.einsum('il...,lj... -> ij...',AjdM
-                  ,np.where(np.sum(SNR>SNR_threshold, axis=0)/SNR.shape[0] >= CNS_percentage/100
-                            ,np.apply_along_axis(np.diag, 0,(SUMlt/np.sum(SNR>SNR_threshold, axis=0) >= CNS_percentage/100).astype(int))
+        X= np.sum( np.einsum('il...,lj... -> ij...',AjdM
+                 , np.where(  np.sum(SNR>SNR_threshold, axis=0)/SNR.shape[0] >= CNS_percentage/100
+                            , np.apply_along_axis(np.diag, 0,(SUMlt/np.sum(SNR>SNR_threshold, axis=0) >= CNS_percentage/100).astype(int))
                             ,0))#[:,:,kk]
-                  , axis=0)#[:,kk]
+                 , axis=0)#[:,kk]
         W= np.where(X>0,X/np.sum(X, axis=0),np.nan)
         mask= np.isnan(W)
         Wm= np.ma.masked_where(mask,W)
@@ -134,8 +144,8 @@ def consensus_mean(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold):
         MEAN= OutCNS.sum(axis=0).filled(np.nan)
         diff= Vr- MEAN
         mask_m= abs(diff)<3
-        Vr_m= np.ma.masked_where(~mask_m,Vr)
-        Vr_m.mean(axis=0).filled(np.nan)
+        Vr_m = np.ma.masked_where(~mask_m,Vr)
+        # Vr_m.mean(axis=0).filled(np.nan)
         IDX= mask_m
         UNC= (Vr_m.max(axis=0)-Vr_m.min(axis=0)).filled(np.nan)/2
         return MEAN, IDX, UNC
@@ -166,41 +176,41 @@ def consensus_median(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold):
         MEAN= np.ma.median(Vr_m, axis =0).filled(np.nan)
         IDX= ~np.isnan(W)
         UNC= (Vr_m.max(axis=0)-Vr_m.min(axis=0)).filled(np.nan)/2
-        return MEAN, IDX, UNC 
-        
-# def consensus(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold):
-#     if SNR_threshold < 0:
-#         SNR_threshold= 10**(SNR_threshold/10)
-#     with np.errstate(divide='ignore', invalid='ignore'):
-#         Vr_X= np.expand_dims(Vr, axis=0)
-#         AjdM = (abs(np.einsum('ij... -> ji...',Vr_X)-Vr_X)<CNS_range).astype(int)
-#         AjdM= np.einsum('il...,lj... -> ij...',AjdM
-#                         ,np.apply_along_axis(
-#                             np.diag, 0
-#                             ,(SNR>SNR_threshold).astype(int))
-#                        )
-#         SUMlt= np.sum(AjdM, axis=0)
-#         max_idx= np.argmax(np.flip(SUMlt),axis=0)
-#         Vr_max= np.vstack(
-#                 [
-#                 vr[-(idx+1)]
-#                 if (np.sum(snr>SNR_threshold)/SNR.shape[0]*100 >= 60.)*(sumlt[-(idx+1)]/np.sum(snr>SNR_threshold)*100 >= CNS_percentage)
-#                 else np.nan
-#                 for vr,idx,snr,sumlt in zip(Vr.T,np.flip(max_idx.T),SNR.T,SUMlt.T)
-#                 ])     
-#         # X= [-(np.argmax(np.flip(x))+1)
-#         #     if (np.max(np.flip(x))/np.sum(SNR[:,ii]>SNR_threshold)*100>=CNS_percentage)*(np.sum(SNR[:,ii]>0)/SNR.shape[0]*100 >= 60.)
-#         #     else []
-#         #     for ii,x in enumerate(SUMlt.T)]
-#         # Vr_max= np.vstack([Vr[x,ii] if not not x else np.nan for ii,x in enumerate(X)])
-#         mask_m= abs(Vr-np.squeeze(Vr_max))<CNS_range
-#         Vr_m= np.ma.masked_where(~mask_m,Vr)
-#         MEAN= np.ma.mean(Vr_m,axis=0).filled(np.nan)
-#         IDX= mask_m
-#         #UNC= (Vr_m.max(axis=0)-Vr_m.min(axis=0)).filled(np.nan)/2
-#         UNC= np.sqrt(np.nansum((Vr-MEAN.T)**2,axis=0)/(Vr.shape[0]-1))
-#         UNC[np.isnan(MEAN)]= np.nan
-#         return MEAN, IDX, UNC 
+        return MEAN, IDX, UNC       
+
+###############################################################################################
+# functions used to identify single cycles
+###############################################################################################
+def process(lst,mon):
+    # Guard clause against empty lists
+    if len(lst) < 1:
+        return lst
+
+    # use an object here to work around closure limitations
+    state = type('State', (object,), dict(prev=lst[0], n=0))
+
+    def grouper_proc(x):
+        if mon==1:
+            if x < state.prev:
+                state.n += 1
+        elif mon==-1:
+            if x > state.prev:
+                state.n += 1
+        state.prev = x
+        return state.n
+
+    return { k: list(g) for k, g in it.groupby(lst, grouper_proc) }
+
+def get_cycles(lst,mon):
+    ll= 0
+    res= {}
+    for key, lst in process(lst,int(np.median(np.sign(np.diff(np.array(lst)))))).items():
+        # print(key,np.arange(ll,ll+len(lst)),lst)
+        id_tmp= np.arange(ll,ll+len(lst))
+        ll+=  len(lst)
+        res.update( { key:{'indices': list(id_tmp), 'values': lst} } )
+    return res
+###############################################################################################
 
 def grouper(iterable, n, fillvalue=None):
     '''Collect data into fixed-length chunks or blocks'''
@@ -213,9 +223,12 @@ def grouper(iterable, n, fillvalue=None):
 #     with np.errstate(invalid='ignore'):
 #         return np.array(list(grouper(it.starmap(f_abs_pairdiff,((it.permutations(Vr.filled(np.nan),2)))),Vr.shape[0]-1))).sum(axis=1)
 
-def calc_node_degree_aliasing(Vr,CNS_range,B):
+def calc_node_degree(Vr,CNS_range,B, metric='l1norm'):
     '''takes masked array as input'''
-    f_abs_pairdiff = lambda x,y: op.sub(B,op.abs(op.sub(op.abs(op.sub(x,y)),B)))<CNS_range
+    if metric == 'l1norm':
+        f_abs_pairdiff = lambda x,y: op.abs(op.sub(x,y))<CNS_range
+    if metric == 'l1norm_aa':
+        f_abs_pairdiff = lambda x,y: op.sub(B,op.abs(op.sub(op.abs(op.sub(x,y)),B)))<CNS_range
     with np.errstate(invalid='ignore'):
         return np.array(list(grouper(it.starmap(f_abs_pairdiff,((it.permutations(Vr.filled(np.nan),2)))),Vr.shape[0]-1))).sum(axis=1)    
 
@@ -224,7 +237,7 @@ def diff_aa(x,y,c):
     return (c-abs(abs(x-y)-c))    
     
 # def consensus(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold):
-def consensus(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold,B):
+def consensus(Vr,SNR,BETA,CNS_range,CNS_percentage,SNR_threshold,B):
     '''
     consensus(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold)
         Calculate consensus average:
@@ -265,45 +278,55 @@ def consensus(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold,B):
         Translation between dB and magnitude can be done with the functions "in_dB(x)" and "in_mag(x)".
         This function implicitely uses machine epsilon (np.float16) for the numerical value of 0, see "filter_by_snr(vr,snr,snr_threshold)".
     '''
-    if SNR_threshold < 0:
-        if check_if_db(SNR_threshold)==True:
-#             print('SNR threshold interpreted as dB')
-            SNR_threshold= in_mag(SNR_threshold)
-        else:
-            print('cannot interpret SNR threshold')
-    with np.errstate(divide='ignore', invalid='ignore'):
-    
-#         SUMlt= np.sum(
-#         np.einsum('ij...,ik...-> ij...'
-#                   ,(abs(np.einsum('ij... -> ji...',filter_by_snr(Vr,SNR,SNR_threshold)[None,...])-filter_by_snr(Vr,SNR,SNR_threshold)[None,...])<CNS_range).filled(False).astype(int)
-#                   ,np.apply_along_axis(np.diag,0,SNR>SNR_threshold).astype(int))
-#         ,axis=0)-(SNR>SNR_threshold).astype(int)
-        
-#         SUMlt= calc_node_degree(filter_by_snr(Vr,SNR,SNR_threshold),CNS_range)        
-#         mask_m= abs(Vr - np.ma.masked_where(
-#             ~((SUMlt[-(np.argmax(np.flipud(SUMlt),axis=0)+1),np.arange(0,SUMlt.shape[1])]/(SNR>SNR_threshold).sum(axis=0)*100 >= CNS_percentage)
-#               *((SNR>SNR_threshold).sum(axis=0)/SNR.shape[0]*100 >= 60.))
-#             ,Vr[-(np.argmax(np.flipud(SUMlt),axis=0)+1),np.arange(0,SUMlt.shape[1])])) < CNS_range
-#         Vr_m= np.ma.masked_where(~(mask_m.filled(False)),Vr)
-#         MEAN= np.ma.mean(Vr_m,axis=0).filled(np.nan)      
-#         IDX= mask_m
-#         UNC= np.nanstd(Vr-MEAN.T, axis=0)
-#         UNC[np.isnan(MEAN)]= np.nan
-        
-        SUMlt= calc_node_degree_aliasing(filter_by_snr(Vr,SNR,SNR_threshold),CNS_range,B)
-        V_max= np.ma.masked_where(
-            ~((SUMlt[-(np.argmax(np.flipud(SUMlt),axis=0)+1)
-                     , np.arange(0,SUMlt.shape[1])]/(SNR>SNR_threshold).sum(axis=0)*100 >= CNS_percentage)
-              *((SNR>SNR_threshold).sum(axis=0)/SNR.shape[0]*100 >= 60.))
-            ,Vr[-(np.argmax(np.flipud(SUMlt),axis=0)+1),np.arange(0,SUMlt.shape[1])])
-        mask_m= diff_aa(Vr,V_max,B)<3
-        Vr_m= np.ma.masked_where((mask_m),Vr).filled(Vr-np.sign(Vr-V_max)*2*B*np.heaviside(abs(Vr-V_max)-B,1))
-        Vr_m= np.ma.masked_where(~(mask_m),Vr_m)        
-        MEAN= Vr_m.mean(axis=0).filled(np.nan)
-        IDX= mask_m
-        UNC= np.nanstd(Vr_m-MEAN.T, axis=0)
-        UNC[np.isnan(MEAN)]= np.nan
-        return MEAN, IDX, UNC  
+    condi_0 = SNR > 0
+    if SNR_threshold == 0:
+        condi_snr = condi_0
+    else:
+        condi_snr = (10*np.log10(SNR.astype(np.complex)).real > SNR_threshold) & (BETA > 0)
+
+    Vr_m = np.ma.masked_where( ~condi_snr, Vr)
+    condi_vr = (abs(Vr_m.filled(-999.)) <= B)
+    Vr_m = np.ma.masked_where( ~condi_vr, Vr_m)
+    ### calculate the number of points within the consensusrange
+    ## easy-to-understand way
+    # SUMlt= 1 + np.sum(
+    #             np.einsum(  'ij...,ik...-> ij...'
+    #                         , (abs(np.einsum('ij... -> ji...', Vr_m[None,...]) - Vr_m[None,...]) < CNS_range).filled(False).astype(int)
+    #                         , np.apply_along_axis(np.diag, 0, condi_vr).astype(int))
+    #             , axis=0) - (condi_vr).astype(int)
+    ## performance strong way using iterators
+    SUMlt= 1 + calc_node_degree(Vr_m, CNS_range, B, metric='l1norm') 
+
+    Vr_maxim= np.ma.masked_where( ~((100*np.max(SUMlt, axis=0)/CNS_percentage >= condi_vr.sum(axis=0)) & (condi_vr.sum(axis=0) >= Vr.shape[0]/100*60.))
+                                    # ~((100*np.max(SUMlt, axis=0)/condi_vr.sum(axis=0) >= CNS_percentage) & (100*condi_vr.sum(axis=0)/Vr.shape[0] > 60.))
+                                    , Vr_m[-(np.argmax(np.flipud(SUMlt),axis=0)+1), np.arange(0,SUMlt.shape[1])]
+                                    # , Vr_m[np.argmax(SUMlt,axis=0), np.arange(0,SUMlt.shape[1])]
+                                )
+    mask_m= abs(Vr_m.filled(999.) - Vr_maxim.filled(-999.)) < CNS_range
+    Vr_m= np.ma.masked_where(~(mask_m), Vr_m.filled(-999.)) 
+    MEAN= Vr_m.sum(axis=0).filled(np.nan)/np.max(SUMlt, axis=0)
+    IDX= mask_m
+    UNC= np.nanstd(Vr_m-MEAN.T, axis=0)
+    UNC[np.isnan(MEAN)]= np.nan
+
+    ### memory and time efficient option
+    # SUMlt= 1 + calc_node_degree(Vr_m, CNS_range, B, metric='l1norm') 
+
+    ### this code is more efficient, but less intuitive and accounts for one-time velocity folding
+    #SUMlt= 1 + calc_node_degree(Vr_m, CNS_range, B, metric='l1norm_aa')        
+    # Vr_maxim= np.ma.masked_where( ~((100*np.max(SUMlt, axis=0)/condi_vr.sum(axis=0) >= CNS_percentage) & (100*condi_vr.sum(axis=0)/Vr.shape[0] > 60.))
+    #                                 , Vr_m[-(np.argmax(np.flipud(SUMlt),axis=0)+1), np.arange(0,SUMlt.shape[1])]
+    #                                 # , Vr_m[np.argmax(SUMlt,axis=0), np.arange(0,SUMlt.shape[1])]
+    #                             )
+    # mask_m= diff_aa(Vr_m, V_max, B) < 3
+    # Vr_m = np.ma.masked_where((mask_m), Vr).filled(Vr-np.sign(Vr-V_max)*2*B*np.heaviside(abs(Vr-V_max)-B, 1))
+    # Vr_m = np.ma.masked_where(~(mask_m), Vr_m)        
+    # MEAN= Vr_m.mean(axis=0).filled(np.nan)
+    # IDX= mask_m
+    # UNC= np.nanstd(Vr_m-MEAN.T, axis=0)
+    # UNC[np.isnan(MEAN)]= np.nan  
+
+    return np.round(MEAN, 4), IDX, UNC  
     
     
 def check_if_db(x):
@@ -324,8 +347,6 @@ def check_if_db(x):
         -----
         The method is only tested empirically and therefore not absolute.    
     '''
-    
-    # return np.any((x<-1)|(x>25))
     return np.any(x<-1)   
 
 def filter_by_snr(x,snr,snr_threshold):
@@ -451,58 +472,19 @@ def in_mag(x):
                 if res<=epsilon_val:
                     res= epsilon_val
                 return res
-            
-# def check_num_dir(n_rays,calc_idx,azimuth):
-#     kk_idx= []
-#     for kk in range(0,len(calc_idx)-1):
-#         h, be = np.histogram(np.mod(azimuth[calc_idx[kk]],360), bins=2*n_rays, range=(0, 360))
-#         counts = np.sum(np.r_[h[-1], h[:-1]].reshape(-1, 2), axis=1) # rotate and sum
-#         edges = np.r_[np.r_[be[-2], be[:-2]][::2], be[-2]]         # rotate and skip
-#         kk_idx.append(np.all(counts/np.sum(counts)/(1/n_rays) > .8) * np.all(counts > 10))
-# #     print(np.all(kk_idx))
-#     return np.all(kk_idx), np.arange(0,360,360//n_rays), edges
 
-# def find_num_dir(n_rays,calc_idx,azimuth):
-#     if check_num_dir(n_rays,calc_idx,azimuth)[0]:
-#         return n_rays, check_num_dir(n_rays,calc_idx,azimuth)[1], check_num_dir(n_rays,calc_idx,azimuth)[2]
-#     else:
-#         print('number of directions to high...try' + str(n_rays//2) + '...instead of ' + str(n_rays//2))
-#         return find_num_dir(n_rays//2,calc_idx,azimuth)    
-    
-# def check_num_dir(n_rays,calc_idx,azimuth,idx_valid):
-#     kk_idx= []
-#     for kk in range(0,len(calc_idx)-1):
-#         if kk in set(idx_valid):
-#             h, be = np.histogram(np.mod(azimuth[calc_idx[kk]],360), bins=2*n_rays, range=(0, 360))
-#             counts = np.sum(np.r_[h[-1], h[:-1]].reshape(-1, 2), axis=1) # rotate and sum
-#             edges = np.r_[np.r_[be[-2], be[:-2]][::2], be[-2]]         # rotate and skip
-# #             kk_idx.append(np.all(counts/np.sum(counts)/(1/n_rays) > .8) * np.all(counts > 10))
-#             kk_idx.append(np.all(counts >= 3))
-# #             print(np.all(kk_idx))
-#         else:
-#             continue
-#     return np.all(kk_idx), np.arange(0,360,360//n_rays), edges
-
-# # def find_num_dir(n_rays,calc_idx,azimuth,idx_valid):
-# #     if check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]:
-# #         return n_rays, check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[1], check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[2]
-# #     elif ~check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]:
-# #         print('number of directions to high...try' + str(n_rays//2) + '...instead of ' + str(n_rays))
-# #         return find_num_dir(n_rays//2,calc_idx,azimuth,idx_valid)
-# #     else:
-# #         print('number of directions to high...try' + str(4) + '...instead of ' + str(n_rays))
-# #         return find_num_dir(4,calc_idx,azimuth,idx_valid)
-
-# def find_num_dir(n_rays,calc_idx,azimuth,idx_valid):
-#     if check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]:
-#         return n_rays, check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[1], check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[2]
-#     elif ~check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]:
-#         if n_rays > 4:
-#             print('number of directions to high...try' + str(n_rays//2) + '...instead of ' + str(n_rays))
-#             return find_num_dir(n_rays//2,calc_idx,azimuth,idx_valid)
-#         elif n_rays < 4:
-#             print('number of directions to high...try' + str(4) + '...instead of ' + str(n_rays))
-#             return find_num_dir(4,calc_idx,azimuth,idx_valid)
+def CN_est(X):
+    Fill_Val = 0
+    X_f = X.filled(Fill_Val)
+    if np.all(X_f == 0):
+        return np.inf
+    else:
+        max_val = svdvals(X_f).max()
+        min_val = svdvals(X_f).min()
+        if min_val == 0:
+            return np.inf
+        else:
+            return max_val/min_val
 
 def check_num_dir(n_rays,calc_idx,azimuth,idx_valid):
     h, be = np.histogram(np.mod(azimuth[calc_idx[idx_valid]],360), bins=2*n_rays, range=(0, 360))
@@ -524,6 +506,7 @@ def find_num_dir(n_rays,calc_idx,azimuth,idx_valid):
         else:
             print('not enough valid directions!-->skip non-convergent time windows' )
             return np.all(check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]), n_rays, check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[1], check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[2]
+
                     
         
 ### the actual processing is done in this class
@@ -604,18 +587,20 @@ class hpl2netCDFClient(object):
         height_bnds[:,1]= np.sin(np.nanmedian(elevation[elevation < 89])*np.pi/180)*(height_bnds[:,1])
         
         # define time chunks
-        time_vec= np.arange(date_chosen
-                ,date_chosen+datetime.timedelta(days = 1)
+        ## Look for UTC_OFFSET in config
+        if 'UTC_OFFSET' in confDict:
+            time_offset = np.timedelta64(int(confDict['UTC_OFFSET']), 'h') 
+            time_delta = int(confDict['UTC_OFFSET'])
+        else:
+            time_offset = np.timedelta64(0, 'h') 
+            time_delta = 0
+            
+        time_vec= np.arange(date_chosen - datetime.timedelta(hours=time_delta)
+                ,date_chosen+datetime.timedelta(days = 1) - datetime.timedelta(hours=time_delta)
                     +datetime.timedelta(minutes= int(confDict['AVG_MIN']))
                         ,datetime.timedelta(minutes= int(confDict['AVG_MIN'])))
         calc_idx= [np.where((ii <= time_ds)*(time_ds < iip1))
                                     for ii,iip1 in zip(time_vec[0:-1],time_vec[1::])]
-        
-#         time_start= np.array([int(pd.to_datetime(time_ds[t[0][-1]]).replace(tzinfo=datetime.timezone.utc).timestamp())
-#                             for t in calc_idx])
-#         time_bnds= np.array([[ int(pd.to_datetime(time_ds[t[0][0]]).replace(tzinfo=datetime.timezone.utc).timestamp())
-#                                 ,int(pd.to_datetime(time_ds[t[0][-1]]).replace(tzinfo=datetime.timezone.utc).timestamp())]
-#                                 for t in calc_idx]).T   
         time_start= np.array([int(pd.to_datetime(time_ds[t[0][-1]]).replace(tzinfo=datetime.timezone.utc).timestamp())
                               if len(t[0]) != 0 
                               else int(pd.to_datetime(time_vec[ii+1]).replace(tzinfo=datetime.timezone.utc).timestamp())
@@ -638,183 +623,239 @@ class hpl2netCDFClient(object):
         # infer number of directions
             # don't forget to check for empty calc_idx
         time_valid= [ii for ii,x in enumerate(calc_idx) if len(x[0]) != 0]        
-        
-#         n_rays, azi_mean, azi_edges= find_num_dir(n_rays,calc_idx,azimuth,time_valid)
-#         azimuth[azimuth>azi_edges[0]]= azimuth[azimuth>azi_edges[0]]-360
-#         azi_edges[0]= azi_edges[0]-360
 
-        UVW= np.where(np.zeros((len(calc_idx),n_gates,3)),np.nan,np.nan)
-        UVWunc= np.where(np.zeros((len(calc_idx),n_gates,3)),np.nan,np.nan)
-        SPEED= np.where(np.zeros((len(calc_idx),n_gates)),np.nan,np.nan)
-        SPEEDunc= np.where(np.zeros((len(calc_idx),n_gates)),np.nan,np.nan)
-        DIREC= np.where(np.zeros((len(calc_idx),n_gates)),np.nan,np.nan)
-        DIRECunc= np.where(np.zeros((len(calc_idx),n_gates)),np.nan,np.nan)
-        R2= np.where(np.zeros((len(calc_idx),n_gates)),np.nan,np.nan)
-        CN= np.where(np.zeros((len(calc_idx),n_gates)),np.nan,np.nan)
-        n_good= np.where(np.zeros((len(calc_idx),n_gates)),np.nan,np.nan)
-        SNR_tot= np.where(np.zeros((len(calc_idx),n_gates)),np.nan,np.nan)
-        BETA_tot= np.where(np.zeros((len(calc_idx),n_gates)),np.nan,np.nan)
-        SIGMA_tot= np.where(np.zeros((len(calc_idx),n_gates)),np.nan,np.nan)
+        # UVW = np.where(np.zeros((len(calc_idx),n_gates,3)),np.nan,np.nan)
+        UVW = np.full((len(calc_idx), n_gates, 3), np.nan)
+        UVWunc = np.full((len(calc_idx), n_gates, 3), np.nan)
+        SPEED = np.full((len(calc_idx), n_gates), np.nan)
+        SPEEDunc = np.full((len(calc_idx), n_gates), np.nan)
+        DIREC = np.full((len(calc_idx), n_gates), np.nan)
+        DIRECunc = np.full((len(calc_idx), n_gates), np.nan)
+        R2 = np.full((len(calc_idx), n_gates), np.nan)
+        CN = np.full((len(calc_idx), n_gates), np.nan)
+        n_good = np.full((len(calc_idx), n_gates), np.nan)
+        SNR_tot = np.full((len(calc_idx), n_gates), np.nan)
+        BETA_tot = np.full((len(calc_idx), n_gates), np.nan)
+        SIGMA_tot = np.full((len(calc_idx), n_gates), np.nan)
 
-
-#         for kk in range(0,len(time_vec)-1):
         for kk in time_valid:
             print('processed ' + str(np.floor(100*kk/(len(calc_idx)-1))) +' %')
             
-#             try:
-#                 n_rays, azi_mean, azi_edges= find_num_dir(n_rays,calc_idx,azimuth,[kk])
-#                 azimuth[azimuth>azi_edges[0]]= azimuth[azimuth>azi_edges[0]]-360
-#                 azi_edges[0]= azi_edges[0]-360
             indicator, n_rays, azi_mean, azi_edges= find_num_dir(n_rays,calc_idx,azimuth,kk)
-            azimuth[azimuth>azi_edges[0]]= azimuth[azimuth>azi_edges[0]]-360
-            azi_edges[0]= azi_edges[0]-360    
-#             if (len(azi_mean) > n_rays) | (len(azi_mean) < n_rays):
-#                 print('some issue with the data', n_rays, len(azi_mean))
-#                 continue
+            # azimuth[azimuth>azi_edges[0]]= azimuth[azimuth>azi_edges[0]]-360
+            # azi_edges[0]= azi_edges[0]-360
+            r_phi = 360/(n_rays)/2 
             if ~indicator:
                 print('some issue with the data', n_rays, len(azi_mean), time_start[kk])
                 continue
             else:
                 
-                VR= dv[calc_idx[kk]]
-                SNR= snr[calc_idx[kk]]
-                BETA= beta[calc_idx[kk]]
-                azi= azimuth[calc_idx[kk]]
-                ele= elevation[calc_idx[kk]]                
+                VR = dv[calc_idx[kk]]
+                SNR = snr[calc_idx[kk]]
+                BETA = beta[calc_idx[kk]]
+                azi = azimuth[calc_idx[kk]]
+                ele = elevation[calc_idx[kk]]                
                 
-                VR_CNSmax= np.where(np.zeros((len(azi_mean),n_gates)),np.nan,np.nan)
-                VR_CNSunc= np.where(np.zeros((len(azi_mean),n_gates)),np.nan,np.nan)
-                SNR_CNS= np.where(np.zeros((len(azi_mean),n_gates)),np.nan,np.nan)
-                BETA_CNS= np.where(np.zeros((len(azi_mean),n_gates)),np.nan,np.nan)
-                SIGMA_CNS= np.where(np.zeros((len(azi_mean),n_gates)),np.nan,np.nan)
-                azi_CNS= np.where(np.zeros((len(azi_mean),n_gates)),np.nan,np.nan)
-                ele_cns= np.where(np.zeros((len(azi_mean),)),np.nan,np.nan)
+                VR_CNSmax = np.full((len(azi_mean),n_gates), np.nan)
+                VR_CNSunc = np.full((len(azi_mean),n_gates), np.nan)
+                # SNR_CNS= np.full((len(azi_mean),n_gates), np.nan)
+                BETA_CNS = np.full((len(azi_mean),n_gates), np.nan)
+                SIGMA_CNS = np.full((len(azi_mean),n_gates), np.nan)
+                # azi_CNS= np.full((len(azi_mean),n_gates), np.nan)
+                ele_cns = np.full((len(azi_mean),), np.nan)
 
-                for ii,azi_i in enumerate(azi_mean):
-                    azi_idx= (azi>=azi_edges[ii])*(azi<azi_edges[ii+1])
-
-                    ele_cns[ii]= np.median(ele[azi_idx])
+                for ii, azi_i in enumerate(azi_mean):
+                    # azi_idx = (azi>=azi_edges[ii])*(azi<azi_edges[ii+1])
+                    azi_idx = (np.mod(360-np.mod(np.mod(azi-azi_i, 360)-r_phi, 360), 360)<=2*r_phi)
+                    ele_cns[ii] = np.median(ele[azi_idx])
                     ## calculate consensus average
-                    VR_CNSmax[ii,:], idx_tmp, VR_CNSunc[ii,:] = consensus(VR[azi_idx]
-                                                                          ,np.ones(SNR[azi_idx].shape)
-#                                                                           ,SNR[azi_idx]
-                                                                                ,int(confDict['CNS_RANGE'])
-                                                                                ,int(confDict['CNS_PERCENTAGE'])
-                                                                                ,int(confDict['SNR_THRESHOLD']) 
-                                                                          ,B
-                                                                                              )
-                    azi_CNS[ii,:]= np.array([np.nanmean(azi[azi_idx][xi]) for xi in idx_tmp.T])
-                    SNR_CNS[ii,:]= np.nanmean(np.where(idx_tmp
-                                                ,SNR[azi_idx]
-                                                ,np.nan), axis=0)
-                    SNR_tmp= SNR[azi_idx]
-                    sigma_tmp= calc_sigma_single(in_db(SNR[azi_idx]),M,n,2*B,1.316)
+                    VR_CNSmax[ii,:], idx_tmp, VR_CNSunc[ii,:] = consensus( VR[azi_idx]
+                                                                        #   , np.ones(SNR[azi_idx].shape)
+                                                                          ,SNR[azi_idx], BETA[azi_idx]
+                                                                          ,int(confDict['CNS_RANGE'])
+                                                                          ,int(confDict['CNS_PERCENTAGE'])
+                                                                          ,int(confDict['SNR_THRESHOLD']) 
+                                                                          , B)
+                    # next line is just experimental and might be useful in the future                                                                          )
+                    # azi_CNS[ii,:]= np.array([np.nanmean(azi[azi_idx][xi]) for xi in idx_tmp.T])
+                    # SNR_CNS[ii,:]= np.nanmean( np.where( idx_tmp
+                    #                                , SNR[azi_idx]
+                    #                                , np.nan)
+                    #                          , axis=0)
+                    SNR_tmp = SNR[azi_idx]
+                    sigma_tmp = calc_sigma_single(in_db(SNR[azi_idx]),M,n,2*B,1.316)
                     # Probably an error in the calculation, but this is what's written in the IDL-code
                     # here: MRSE (mean/root/sum/square)
                     # I woulf recommend changing it to RMSE (root/mean/square)
-                    SIGMA_CNS[ii,:]= np.sqrt(np.nansum(np.where(idx_tmp
-                                                ,sigma_tmp**2
-                                                ,np.nan)
-                                                        , axis=0)
-                                            )/np.sum(idx_tmp,axis=0)
+                    # SIGMA_CNS[ii,:] = np.sqrt(np.nansum( np.where( idx_tmp
+                    #                                              , sigma_tmp**2
+                    #                                              , np.nan)
+                    #                                     , axis=0)
+                    #                         )/np.sum(idx_tmp, axis=0)
+                    SIGMA_CNS[ii,:] = np.ma.divide( np.sqrt( np.nansum( np.where( idx_tmp
+                                                                                , sigma_tmp**2
+                                                                                , np.nan)
+                                                                       , axis=0))
+                                                    , np.sum(idx_tmp, axis=0)
+                                                    )
                     ## calculate BETA, with consensus indices
-                    BETA_CNS[ii,:]= np.nanmean(np.where(idx_tmp
-                                                ,BETA[[azi_idx]]
-                                                ,np.nan), axis=0) 
+                    # BETA_CNS[ii,:]= np.nanmean(np.where(idx_tmp
+                    #                            ,BETA[azi_idx]
+                    #                            ,np.nan), axis=0) 
 
         #     # This approach avoids looping over all range gates, but the method is not as stable
-        #     U_r=np.ma.masked_where(np.isnan(VR_CNSmax),VR_CNSmax).T[...,None]
-        #     A_r= np.tile(hp.hpl2netCDF_client.build_Amatrix(azi_mean,ele_cns),(VR_CNSmax.shape[1],1,1))
-        #     A_rT= np.einsum('...ij->...ji',A_r)
-        #     AT_A= np.einsum('...ik,...kj->...ij',A_rT,A_r)
-        #     AT_A= np.ma.masked_where((AT_A<np.finfo(np.float32).eps),AT_A)
-        #     MPI_A= np.einsum('...ik,...kj->...ij',(AT_A**-1),A_rT)
-        #     V_k= np.squeeze(np.einsum('...ik,...kj->...ij',MPI_A,U_r))
-        #     SPEED[kk,:]= np.array([np.sqrt(v_k[0]**2 + v_k[1]**2 + v_k[2]**2) for v_k in V_k])
+                n_good_kk = (~np.isnan(VR_CNSmax)).sum(axis=0)
+                # NVRAD[kk, :] = (~np.isnan(VR_CNSmax)).sum(axis=0)
+                n_good[kk, :] = n_good_kk
+                V_r=np.ma.masked_where( (np.isnan(VR_CNSmax)) #& (np.tile(n_good_kk, (azi_mean.shape[0], 1)) < 4)
+                                    , VR_CNSmax).T[..., None]
+                V_in=np.ma.masked_where( (np.isnan(VR_CNSmax)) & (np.tile(n_good_kk, (azi_mean.shape[0], 1)) < 4)
+                                    , VR_CNSmax)
+                A = build_Amatrix(azi_mean, ele_cns)
+                # A[abs(A)<1e-3] = 0
+                A_r = np.tile( A,  (VR_CNSmax.shape[1], 1, 1))
+                A_r_MP = np.tile( np.linalg.pinv(A), (VR_CNSmax.shape[1],1,1))
+                A_r_MP_T = np.einsum('...ij->...ji', A_r_MP)
+                SIGMA_r = np.ma.masked_where(np.isnan(VR_CNSmax), SIGMA_CNS).T
 
-                # loop over range gates
-                for jj,Vcns in enumerate(VR_CNSmax.T):
-                                # print(jj)
-                    condi= (~np.isnan(Vcns))#*(Vcns != 0)*(abs(Vcns)<=B)*(~np.isnan(azi_CNS[:,jj]))
-                    n_good[kk,jj]= sum(condi)
-                    if sum(condi)<4:#int(confDict['N_VRAD_THRESHOLD']):                 
-                        continue
-                    else:
-                        SNR_tot[kk,jj]= np.nanmean(SNR_CNS[:,jj][condi])
-                        BETA_tot[kk,jj]= np.nanmean(BETA_CNS[:,jj][condi])    
-                        SIGMA_tot[kk,jj]= np.sqrt(np.nanmean(SIGMA_CNS[:,jj][condi]**2))        
-                        Vr= Vcns[condi]
-                        SIGMA= SIGMA_CNS[:,jj][condi]                        
 
-                        ## create A matrix
-                        A= build_Amatrix(azi_mean[condi],ele_cns[condi])
-                        # calculate regression using build in OLS regression
-                        UVW[kk,jj,:], sumRes, Rank, svd_tmp = VAD_retrieval(azi_mean[condi],ele_cns[condi]#azi_CNS[condi,jj],ele_cns[condi]
-                                                                            ,Vr)
-                        ## calculate uncertainty according to Päschke et al. [2015], using build in svd         
-                        UVWunc[kk,jj,:]= np.sqrt(np.diag(np.linalg.pinv(A) @ np.diag(SIGMA**2) @ np.linalg.pinv(A).T))
+                condi = np.isnan(VR_CNSmax)
+                A = np.round(build_Amatrix(azi_mean, ele_cns), 6)
+                U, S, Vh = [], [], []
+                for c_nn in condi.T:
+                    u, s, vh = np.linalg.svd( np.ma.masked_where( np.tile(c_nn, (3, 1)).T
+                                                                , A).filled(0)
+                                            , full_matrices=True)
+                    
+                    U.append(u)
+                    S.append(np.linalg.pinv(diagsvd(s,u.shape[0],vh.shape[0])))
+                    Vh.append(vh)
+                U, S, Vh = np.array(U), np.array(S), np.array(Vh)
 
-                        ## calucalte R2, by foot
-                        Vr_l = A @ UVW[kk,jj,:]
-                        Vr_m = np.mean(Vr)
 
-                                # calc R2
-                        R2[kk,jj]= 1-(np.sum((Vr-Vr_l)**2)/np.sum((Vr-Vr_m)**2))
-#                         # other approaches
-#                         R2[kk,jj]= 1-(np.sum((Vr[abs(Vr_l)<=B]-Vr_l[abs(Vr_l)<=B])**2)/np.sum((Vr[abs(Vr_l)<=B]-Vr_m)**2))
-#                         R2[kk,jj]= (np.sum((Vr_l-np.mean(Vr_l))**2)/np.sum((Vr-Vr_m)**2))
-                        if R2[kk,jj]>1:
-                                print('something wrong, check: ',kk,R2[kk],Vr,Vr_l)
+                U_T = np.einsum('...ij->...ji', U)
+                Vh_T = np.einsum('...ij->...ji', Vh)
+                K1 = np.nansum((U_T * V_in.T[:, None, :]), axis=2)[..., None]
+                K2 = np.einsum('...ik,...kj->...ij', S, K1)
 
-                        ## calculate CN from SVD
-                        CN[kk,jj]= max(svd_tmp)/min(svd_tmp) #entspricht Norm des largest singular values! -> 2
+                V_k = np.einsum('...ik,...kj->...ij', Vh_T, K2)
+                UVW[kk, ...] = np.squeeze(V_k)
+                # plausible winds can only be calculated, when the at least three LOS measurements are present
+                UVW[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
-                        ## calculate SPEED and...
-                        u_tmp=uvw_2_spd(UVW[kk,jj,:],UVWunc[kk,jj,:])
-                        SPEED[kk,jj]= u_tmp['speed']
-                        SPEEDunc[kk,jj]= u_tmp['error']
-                        ## ... DIRECTION
-                        u_tmp=uvw_2_dir(UVW[kk,jj,:],UVWunc[kk,jj,:])
-                        DIREC[kk,jj]= u_tmp['wdir']
-                        DIRECunc[kk,jj]= u_tmp['error']
+                UVWunc[kk, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(np.complex)).real))
+                # plausible winds can only be calculated, when the at least three LOS measurements are present
+                UVWunc[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
+
+                V_r_est = A_r @ V_k
+                ss_e = ((V_r-V_r_est)**2).sum(axis = 1)
+                ss_t = ((V_r-V_r.mean(axis=1)[:, None, :])**2).sum(axis = 1)
+                R2[kk, :] = np.squeeze(1 - ss_e/ss_t)
+                # R2[kk, :] = 1 - (1 - R2[kk, :]) * (np.sum(~np.isnan(VR_CNSmax.T), axis=1)-1)/(np.sum(~np.isnan(VR_CNSmax.T), axis=1)-2)  
+                # sqe = ((V_r_est-V_r_est.mean(axis=1)[:, None, :])**2).sum(axis = 1)
+                # sqt = ((V_r-V_r.mean(axis=1)[:, None, :])**2).sum(axis = 1)
+                # R2[kk, :] = np.squeeze(sqe/sqt)
+                R2[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4] = np.nan
+                
+
+                mask_A = np.tile( V_in.T[..., None].mask, (1, 1, 3))
+                A_r_m = np.ma.masked_where( mask_A, A_r)
+                A_r_T = np.einsum('...ij->...ji', A_r)
+                Spp =  np.apply_along_axis(np.diag, 1, 1/np.sqrt(np.einsum('...ii->...i', A_r_T @ A_r)))
+                Z = np.ma.masked_where( mask_A, A_r @ Spp)
+                CN[kk, :] =  np.squeeze(np.array([CN_est(X) for X in Z]))
+                # CN[kk, :] = np.array([CN_est(X) for X in A_r_m])
+                CN[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4] = np.nan
+
+                SPEED[kk, :], SPEEDunc[kk, :] = np.vstack([np.fromiter(uvw_2_spd(val, unc).values(), dtype=float) for val, unc in zip(UVW[kk, ...], UVWunc[kk, ...])]).T
+                DIREC[kk, :], DIRECunc[kk, :] = np.vstack([np.fromiter(uvw_2_dir(val, unc).values(), dtype=float) for val, unc in zip(UVW[kk, ...], UVWunc[kk, ...])]).T
+
+### worse performance, but equivalent
+#                 # loop over range gates
+#                 for jj,Vcns in enumerate(VR_CNSmax.T):
+#                                 # print(jj)
+#                     condi= (~np.isnan(Vcns))#*(Vcns != 0)*(abs(Vcns)<=B)*(~np.isnan(azi_CNS[:,jj]))
+#                     n_good[kk,jj]= sum(condi)
+#                     if sum(condi)<4:#int(confDict['N_VRAD_THRESHOLD']):                 
+#                         continue
+#                     else:
+#                         # SNR_tot[kk,jj]= np.nanmean(SNR_CNS[:,jj][condi])
+#                         # BETA_tot[kk,jj]= np.nanmean(BETA_CNS[:,jj][condi])    
+#                         SIGMA_tot[kk,jj]= np.sqrt(np.nanmean(SIGMA_CNS[:,jj][condi]**2))        
+#                         Vr= Vcns[condi]
+#                         SIGMA= SIGMA_CNS[:,jj][condi]                        
+
+#                         ## create A matrix
+#                         A= build_Amatrix(azi_mean[condi],ele_cns[condi])
+#                         # calculate regression using build in OLS regression
+#                         UVW[kk,jj,:], sumRes, Rank, svd_tmp = VAD_retrieval(azi_mean[condi],ele_cns[condi]#azi_CNS[condi,jj],ele_cns[condi]
+#                                                                             ,Vr)
+#                         ## calculate uncertainty according to Päschke et al. [2015], using build in svd         
+#                         UVWunc[kk,jj,:]= np.sqrt(np.diag(np.linalg.pinv(A) @ np.diag(SIGMA**2) @ np.linalg.pinv(A).T))
+
+#                         ## calucalte R2, by foot
+#                         Vr_l = A @ UVW[kk,jj,:]
+#                         Vr_m = np.mean(Vr)
+
+#                                 # calc R2
+#                         R2[kk,jj]= 1-(np.sum((Vr-Vr_l)**2)/np.sum((Vr-Vr_m)**2))
+# #                         # other approaches
+# #                         R2[kk,jj]= 1-(np.sum((Vr[abs(Vr_l)<=B]-Vr_l[abs(Vr_l)<=B])**2)/np.sum((Vr[abs(Vr_l)<=B]-Vr_m)**2))
+# #                         R2[kk,jj]= (np.sum((Vr_l-np.mean(Vr_l))**2)/np.sum((Vr-Vr_m)**2))
+#                         if R2[kk,jj]>1:
+#                                 print('something wrong, check: ',kk,R2[kk],Vr,Vr_l)
+
+#                         ## calculate CN from SVD
+#                         CN[kk,jj]= max(svd_tmp)/min(svd_tmp) #entspricht Norm des largest singular values! -> 2
+
+#                         ## calculate SPEED and...
+#                         u_tmp=uvw_2_spd(UVW[kk,jj,:],UVWunc[kk,jj,:])
+#                         SPEED[kk,jj]= u_tmp['speed']
+#                         SPEEDunc[kk,jj]= u_tmp['error']
+#                         ## ... DIRECTION
+#                         u_tmp=uvw_2_dir(UVW[kk,jj,:],UVWunc[kk,jj,:])
+#                         DIREC[kk,jj]= u_tmp['wdir']
+#                         DIRECunc[kk,jj]= u_tmp['error']
+
         ## do quality control
-        speed= np.copy(SPEED)
-        errspeed= np.copy(SPEEDunc)
-        wdir= np.copy(DIREC)
-        errwdir= np.copy(DIRECunc)
-        r2= np.copy(R2)
-        cn= np.copy(CN)
-        nvrad= np.copy(n_good)
-        u= np.copy(UVW[:,:,0])
-        v= np.copy(UVW[:,:,1])
-        w= np.copy(UVW[:,:,2])
-        erru= np.copy(UVWunc[:,:,0])
-        errv= np.copy(UVWunc[:,:,1])
-        errw= np.copy(UVWunc[:,:,2])
+        speed = np.copy(SPEED)
+        errspeed = np.copy(SPEEDunc)
+        wdir = np.copy(DIREC)
+        errwdir = np.copy(DIRECunc)
+        r2 = np.copy(R2)
+        cn = np.copy(CN)
+        nvrad = np.copy(n_good)
+        u = np.copy(UVW[:,:,0])
+        v = np.copy(UVW[:,:,1])
+        w = np.copy(UVW[:,:,2])
+        erru = np.copy(UVWunc[:,:,0])
+        errv = np.copy(UVWunc[:,:,1])
+        errw = np.copy(UVWunc[:,:,2])
 
-        qspeed= (~np.isnan(SPEED))*(abs(w)<.3*np.sqrt(np.nanmedian(u)**2+np.nanmedian(v)**2))
-        r2[np.isnan(R2)]=-999.
-        qr2= r2>=.95
-        cn[np.isnan(CN)]= 999.
-        qcn= cn<=10
-        nvrad[np.isnan(n_good)]= -999
-        qnvrad= nvrad>=4
+        qspeed = (~np.isnan(SPEED))#*(abs(w)<.3*np.sqrt(np.nanmedian(u)**2+np.nanmedian(v)**2))
+        r2[np.isnan(R2)] = -999.
+        qr2 = r2>=float(confDict['R2_THRESHOLD'])
+        cn[np.isnan(CN)] = +999.
+        qcn = (cn >= 0) & (cn<=float(confDict['CN_THRESHOLD']))
+        nvrad[np.isnan(n_good)] = -999
+        qnvrad = nvrad>=int(confDict['N_VRAD_THRESHOLD'])
 
-        qwind= qspeed*qnvrad*qcn*qr2
-        qspeed= qspeed*qnvrad
-        speed[~qspeed]= -999.
-        errspeed[~qspeed]= -999.
-        wdir[~qspeed]= -999.
-        errwdir[~qspeed]= -999.
-        u[~qspeed]= -999.
-        v[~qspeed]= -999.
-        w[~qspeed]= -999.
-        erru[~qspeed]= -999.
-        errv[~qspeed]= -999.
-        errw[~qspeed]= -999.
-        r2[~qspeed]= -999.
-        cn[~qspeed]= -999.
-        nvrad[~qspeed]= -999.        
+        qwind = qspeed & qnvrad & qcn & qr2
+        # qspeed = qspeed & qnvrad
+        qspeed = qwind
+        speed[~qspeed] = -999.
+        errspeed[~qspeed] = -999.
+        wdir[~qspeed] = -999.
+        errwdir[~qspeed] = -999.
+        u[~qspeed] = -999.
+        v[~qspeed] = -999.
+        w[~qspeed] = -999.
+        erru[~qspeed] = -999.
+        errv[~qspeed] = -999.
+        errw[~qspeed] = -999.
+        r2[~qspeed] = -999.
+        cn[~qspeed] = -999.
+        nvrad[~qspeed] = -999.        
 
         
         if np.all(np.isnan(speed)):
@@ -1031,7 +1072,15 @@ class hpl2netCDFClient(object):
         # compress variables
         comp = dict(zlib=True, complevel=9)
         encoding = {var: comp for var in np.hstack([ds_lvl2.data_vars,ds_lvl2.coords])}
-        
+
+        # ds_lvl2.time.attrs['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
+        ds_lvl2.time.encoding['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
+        ## add configuration used to create the file
+        configuration = """"""
+        for dd in confDict:
+            configuration += dd + '=' + confDict[dd]+'\n'
+        ds_lvl2.attrs['File_Configuration']= configuration
+        ## save file to path
         ds_lvl2.to_netcdf(path, unlimited_dims={'time':True}, encoding=encoding)
         print(path)
         print(ds_lvl2.info)
@@ -1043,11 +1092,17 @@ class hpl2netCDFClient(object):
     def lvl2ql(self):
         date_chosen = self.date2proc
         confDict= config.gen_confDict(url= self.config_dir)
+        ## Look for UTC_OFFSET in config
+        if 'UTC_OFFSET' in confDict:
+            time_offset = np.timedelta64(int(confDict['UTC_OFFSET']), 'h') 
+            time_delta = int(confDict['UTC_OFFSET'])
+        else:
+            time_offset = np.timedelta64(0, 'h') 
+            time_delta = 0
         path= Path(confDict['NC_L2_PATH'] + '/'  
                     + date_chosen.strftime("%Y") + '/'
                     + date_chosen.strftime("%Y%m")
                   )
-        #tub_dlidVAD143_l1_any_v00_20190607000000.nc
         mylist= list(path.glob('**/' + confDict['NC_L2_BASENAME'] + '*' + date_chosen.strftime("%Y%m%d")+ '.nc'))
         print(mylist[0])
         if len(mylist)>1:
@@ -1072,7 +1127,7 @@ class hpl2netCDFClient(object):
         ax.spines['bottom'].set_linewidth(2)
 
        #load variables and prepare mesh for plotting
-        X,Y= np.meshgrid(ds.time.data,ds.height.data)
+        X,Y= np.meshgrid(ds.time.data, ds.height.data)
         U= np.copy(ds.u.data)
         if np.all(np.isnan(U)):
             print('all input is NaN -> check nvrad threshold!')
@@ -1081,39 +1136,77 @@ class hpl2netCDFClient(object):
             V= np.copy(ds.v.data)
             WS= np.copy(ds.wspeed.data)
             qwind= np.copy(ds.qwind.data)
+
             mask= (qwind<1)
+            # masked_u = np.ma.masked_where(mask,U)
+            # masked_v = np.ma.masked_where(mask,V)
+            vel_sq_sum = U**2 + V**2
+            qvels = np.sqrt(  vel_sq_sum
+                            , out=np.zeros(vel_sq_sum.shape)
+                            , where=~np.isnan(vel_sq_sum)) >= 2.5
+            qwind = qwind * qvels
+            # qwind = qwind * ( np.sqrt(masked_u**2 + masked_v**2) >= 2.5)
+            mask= (qwind<1)
+
             masked_u = np.ma.masked_where(mask,U)
-            #mask= np.isnan(V)*(abs(V)>40)
             masked_v = np.ma.masked_where(mask,V)
             masked_WS = np.ma.masked_where(mask,WS)
+
             # define adjustable and discretized colormap
-            wsmax= np.round(masked_WS.max(),-1)
+            wsmax= np.round(masked_WS.max(),-1)#+5
             palette = plt.get_cmap(cmap_discretize(cm.jet,int(wsmax)))
             palette.set_under('white', 1.0)
             # define x-axis values
-            d= pd.to_datetime(ds.time.data[0]).date()
-            dp1=pd.to_datetime(ds.time.data[0]).date()+datetime.timedelta(days=1)
-            dticks= np.arange(d,dp1)
+            # d= pd.to_datetime(ds.time.data[0]).date()
+            # dp1=pd.to_datetime(ds.time.data[0]).date()+datetime.timedelta(days=1)
+            # dticks= np.arange(d, dp1)
+            # print(d, dp1)
+            d0 = date_chosen.date()   
+            d = datetime.datetime(d0.year, d0.month, d0.day) - datetime.timedelta(hours=time_delta)    
+            dp1 =datetime.datetime(d0.year, d0.month, d0.day) + datetime.timedelta(days=1) - datetime.timedelta(hours=time_delta)                                                                     
+            print(d, dp1)
+            dticks= np.arange(d, dp1, datetime.timedelta(hours=1))
+
             # plot colored barbs
-            c= ax.barbs(X.T,Y.T,masked_u,masked_v,masked_WS,clim= [0,wsmax]
-                        #,length=6
-                , pivot='middle'#, flip_barb=True
-                ,sizes=dict(emptybarb=.25, spacing=.1, height=.5, width=.3),cmap=palette)
+            clims = [0, wsmax]
+            c= ax.barbs(  X.T, Y.T, masked_u, masked_v, masked_WS
+                        , clim= clims
+                        , pivot='middle'#, flip_barb=True
+                        , barb_increments=dict( half=2.5, full=5, flag=25)
+                        , sizes=dict(emptybarb=.25, spacing=.1, height=.5, width=.3)
+                        , cmap=palette
+                        )
             # set x-axis limits
             ax.set_xlim(d,dp1)
             ax.set_aspect('auto')
             # add colorbar and adjust its settings
-            cbar = fig.colorbar(c, ax=ax, extend='both', pad=0.02,ticks=np.linspace(0,wsmax,int(wsmax/5 + 1)))
-            cbar.set_label(r'$\rm{wind\;speed}\;/\;\rm{m}\,\rm{s}^{-1}$', rotation=270,
-                        fontsize=22, labelpad=30)
-            cbar.ax.tick_params(labelsize=18, length = 0, width = 2,direction= 'in')
+            cticks = np.linspace(0, wsmax, int(wsmax/5 + 1))
+            cbar = fig.colorbar(c, ax=ax, extend='both', pad=0.02,ticks=cticks)
+            cbar.set_label( r'$\rm{wind\;speed}\;/\;\rm{m}\,\rm{s}^{-1}$'
+                            , rotation=270
+                            , fontsize=22
+                            , labelpad=30
+                            )
+            cbar.ax.tick_params(  labelsize=18
+                                , length = 0
+                                , width = 2
+                                , direction= 'in'
+                                )
             # set time axis
-            plt.setp(ax, xticks=np.hstack([dticks,dp1+datetime.timedelta(hours=1)]))
+            # plt.setp(ax, xticks=np.hstack([dticks,dp1+datetime.timedelta(hours=1)]))
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%H'))
-            ax.xaxis.set_major_locator(mdates.HourLocator(byhour=range(0,24,6)))
-            ax.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(0,24,1)))
+            # ax.xaxis.set_major_locator(mdates.HourLocator(byhour=range(0, 24, 6)))
+            # ax.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(0, 24, 1)))
+            ax.xaxis.set_major_locator(mdates.HourLocator(byhour=np.mod(range(0-time_delta
+                                                                      ,24-time_delta
+                                                                      ,6), 24)))
+            ax.xaxis.set_minor_locator(mdates.HourLocator(byhour=np.mod(range(0-time_delta
+                                                                      ,24-time_delta
+                                                                      ,1), 24)))
             # put x-and y-label
-            ax.set_xlabel(d.strftime('%Y-%m-%d') + '\n' + 'time (UTC)', fontsize=22)
+            ax.set_xlabel(date_chosen.strftime('%Y-%m-%d') + '\n' + 'time (UTC)', fontsize=22)
+            # ax.set_xlabel(d.strftime('%Y-%m-%d') + '\n' + ('time (UTC)', 'time (UTC{:+03d})'.format(time_delta))[abs(np.sign(time_delta))]
+            #                             , fontsize=22)
             ax.set_ylabel(r'$\rm{height}\;/\;\rm{m}$', fontsize=22)
 
             # find maximum height
@@ -1132,17 +1225,192 @@ class hpl2netCDFClient(object):
             ax.yaxis.set_major_locator(MultipleLocator(delmajor))
             ax.yaxis.set_minor_locator(MultipleLocator(delmajor//delnom))
             # set y-axis limits
-            ax.set_ylim([0,(np.round(hmax,-2)+100)])
+            ylims_1 = [0, (np.round(hmax,-2)+100)]
+            ax.set_ylim(ylims_1)
+            # plot smaller than 2.5 as sticks
+            U= np.copy(ds.u.data)
+            V= np.copy(ds.v.data)
+            WS= np.copy(ds.wspeed.data)
+            qwind= np.copy(ds.qwind.data)
+
+            mask= (qwind<1)
+            # masked_u = np.ma.masked_where(mask,U)
+            # masked_v = np.ma.masked_where(mask,V)
+            vel_sq_sum = U**2 + V**2
+            qvels = np.sqrt( vel_sq_sum
+                            , out=999. * np.ones(vel_sq_sum.shape)
+                            , where=~np.isnan(vel_sq_sum)
+                            ) < 2.5 
+
+            qwind = qwind * qvels
+            mask= (qwind<1)
+
+            masked_u = np.ma.masked_where(mask,U)
+            masked_v = np.ma.masked_where(mask,V)
+            masked_WS = np.ma.masked_where(mask,WS)
+
+            c= ax.barbs(  X.T, Y.T
+                        , masked_u
+                        , masked_v
+                        , masked_WS
+                        , clim= [0,wsmax]
+                        , rounding=False
+                        , pivot='middle'#, flip_barb=True
+                        , barb_increments=dict( half=.25, full=5, flag=25)
+                        , sizes=dict(emptybarb=.25, spacing=.1, height=0., width=0.)
+                        , cmap=palette
+                        )   
+
             # set tick parameters
             ax.tick_params(axis='both', labelsize=18, length = 34, width = 2. ,pad=7.78
                         , which='major', direction= 'in', top=True, right=True)
             ax.tick_params(axis='both', labelsize=18, length = 23, width = 1.
                         , which='minor', direction= 'in', top=True, right=True)
-            path= Path(confDict['NC_L2_QL_PATH'] + '/' + d.strftime('%Y') + '/' + d.strftime('%Y%m'))
+            ## save wind quicklook           
+            path= Path(confDict['NC_L2_QL_PATH'] + '/' + date_chosen.strftime('%Y') + '/' + date_chosen.strftime('%Y%m'))
+            print('saving wind retrieval quicklook as... \n ... '
+                    + str('{}/' + confDict['NC_L2_BASENAME'] + 'ql_' + date_chosen.strftime('%Y%m%d') 
+                    + '_' + str(confDict['AVG_MIN']) + 'min' + '.png').format(path)
+                 )
             path.mkdir(parents=True,exist_ok=True)
-            fig.savefig(str('{}/' + confDict['NC_L2_BASENAME'] + 'ql_' + d.strftime('%Y%m%d') + '_' + str(confDict['AVG_MIN']) + 'min' + '.png').format(path)
+            fig.savefig(str('{}/' + confDict['NC_L2_BASENAME'] + 'ql_' + date_chosen.strftime('%Y%m%d') + '_' + str(confDict['AVG_MIN']) + 'min' + '.png').format(path)
                         ,transparent=False, bbox_inches='tight')
 
+    def bckql(self):
+        date_chosen = self.date2proc
+        confDict= config.gen_confDict(url= self.config_dir)
+        if 'UTC_OFFSET' in confDict:
+            time_offset = np.timedelta64(int(confDict['UTC_OFFSET']), 'h') 
+            time_delta = int(confDict['UTC_OFFSET'])
+        else:
+            time_offset = np.timedelta64(0, 'h') 
+            time_delta = 0
+        path= Path(confDict['NC_L1_PATH'] + '/'  
+                    + date_chosen.strftime("%Y") + '/'
+                    + date_chosen.strftime("%Y%m")
+                  )
         
- 
+        mylist= list(path.glob('**/' + confDict['NC_L1_BASENAME'] + '*' + date_chosen.strftime("%Y%m%d")+ '.nc'))
+        print(mylist[0])
+        if len(mylist)>1:
+            print('!!!multiple files found!!!, only first is processed!')
+        try:
+            ds= xr.open_dataset(mylist[0])
+        except:
+            print('no such file exists: ' + path.name + '... .nc')
+        if not ds:
+            print('unable to continue processing!')
+        else:
+            print('processing lvl1 to lvl2...')
+        data= np.mod(ds.azi.data-ds.azi.data[0], 360)
+        cycles= get_cycles(data, int(np.median(np.sign(np.diff(np.array(data))))))
+        df= pd.DataFrame.from_dict(cycles, orient='index')
+        df['indices'].apply(lambda row: len(row)).median()
+
+
+        Z = ds.beta.data
+        mask= (np.isnan(Z)) | (Z==-999.)
+        masked_Z = np.ma.masked_where(mask, Z)
+        beta_max = np.empty((df.__len__(), ds.beta.shape[1]))
+        time_mean = np.empty((df.__len__()))
+
+        for ii in range(df.__len__()):
+            time_mean[ii] = ds.time[df['indices'][ii]].mean(dim='time')
+            beta_max[ii] = np.max(Z[df['indices'][ii]], axis=0)
+
+
+        fig, axes= plt.subplots(1,1,figsize=(18, 12))
+        # set figure bachground color, "'None'" means transparent; use 'w' as alternative
+        fig.set_facecolor('None')
+        ax= axes
+        # make spines' linewidth thicker
+        ax.spines['left'].set_linewidth(2)
+        ax.spines['right'].set_linewidth(2)
+        ax.spines['top'].set_linewidth(2)
+        ax.spines['bottom'].set_linewidth(2)
+
+        #load variables and prepare mesh for plotting
+        X, Y = np.meshgrid(mdates.date2num(pd.to_datetime(time_mean)), ds.range.data*np.sin(np.pi/180 * (90-ds.zenith.data.mean())))                          
+        Z = np.copy(beta_max)
+        if np.all(np.isnan(Z)):
+            print('all input is NaN -> check nvrad threshold!')
+            print('no quick look  is saved')
+        else:
+            mask= np.isnan(Z)
+            masked_Z = np.ma.masked_where(mask, Z)           
+
+            c_temp = ax.pcolormesh(  X.T, Y.T
+                                , masked_Z
+                                , cmap=cm.gnuplot2
+                                , norm=mcolors.LogNorm(vmin=1e-7, vmax=1e-4)
+                                )
             
+            cbar = fig.colorbar(c_temp, ax=ax, extend='both', pad=0.01)
+            cbar.set_label(r'$\rm{attenuated\;backscatter}\;/\;\rm{m}^{-1}\,\rm{sr}^{-1}$', rotation=270,
+                        fontsize=22, labelpad=37)
+            # cbar.ax.tick_params(labelsize=27, length = 0, width = 2, dir17ection= 'in')
+            cbar.ax.tick_params(which='major', direction= 'out', length = 14, width = 2, labelsize=22)
+            cbar.ax.tick_params(which='minor', direction= 'out', length = 8, width = 2, labelsize=22)
+            # set x-axis limits
+            # define x-axis values
+            # d= pd.to_datetime(ds.time.data[0]).date()
+            # dp1=pd.to_datetime(ds.time.data[0]).date()+datetime.timedelta(days=1)
+            d0 = date_chosen.date()   
+            d = datetime.datetime(d0.year, d0.month, d0.day) - datetime.timedelta(hours=time_delta)    
+            dp1 =datetime.datetime(d0.year, d0.month, d0.day) + datetime.timedelta(days=1) - datetime.timedelta(hours=time_delta)                                                                     
+            print(d, dp1)
+            dticks= np.arange(d, dp1, datetime.timedelta(hours=1))
+            # dticks= np.arange(d, dp1+datetime.timedelta(hours=2), datetime.timedelta(hours=1))
+            ax.set_xlabel(date_chosen.strftime('%Y-%m-%d') + '\n' + 'time (UTC)', fontsize=22)
+            # ax.set_xlabel(d.strftime('%Y-%m-%d') + '\n' + ('time (UTC)', 'time (UTC{:+03d})'.format(time_delta))[abs(np.sign(time_delta))]
+            #                             , fontsize=22)
+            ax.set_ylabel(r'$\rm{height}\;/\;\rm{m}$', fontsize=22)
+            ax.set_xlim(d, dp1)
+            ax.set_aspect('auto')
+            # set time axis
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H'))
+            # ax.xaxis.set_major_locator(mdates.HourLocator(byhour=range(0
+            #                                                           ,24
+            #                                                           ,6)))
+            # ax.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(0
+            #                                                           ,24
+            #                                                           ,1)))
+            ax.xaxis.set_major_locator(mdates.HourLocator(byhour=np.mod(range(0-time_delta
+                                                                      ,24-time_delta
+                                                                      ,6), 24)))
+            ax.xaxis.set_minor_locator(mdates.HourLocator(byhour=np.mod(range(0-time_delta
+                                                                      ,24-time_delta
+                                                                      ,1), 24)))
+
+            # find maximum height
+            hmax= ds.range.data[-1]*np.sin(np.pi/180 * (90-ds.zenith.data.mean()))
+            # set dynamic ticks
+            if hmax>=6000:
+                delmajor= 2000
+                delnom= 4
+            elif (hmax>2000)*(hmax<6000):
+                delmajor= 1000
+                delnom= 4
+            else:
+                delmajor= 500
+                delnom=5
+            ax.yaxis.set_major_locator(MultipleLocator(delmajor))
+            ax.yaxis.set_minor_locator(MultipleLocator(delmajor//delnom))
+            # set y-axis limits
+            ylims_1 = [0, (np.round(hmax,-2)+100)]
+            ax.set_ylim(ylims_1)
+            # ax.set_xlim(d, dp1)
+            # set tick parameters
+            ax.tick_params(axis='both', labelsize=18, length = 34, width = 2. ,pad=7.78
+                        , which='major', direction= 'in', top=True, right=True)
+            ax.tick_params(axis='both', labelsize=18, length = 23, width = 1.
+                        , which='minor', direction= 'in', top=True, right=True)
+            ## save wind quicklook
+            path= Path(confDict['NC_L2_QL_PATH'] + '/' + date_chosen.strftime('%Y') + '/' + date_chosen.strftime('%Y%m') + '/')
+            print('saving backscatter quicklook as... \n ... '
+                    + str('{}' + confDict['NC_L2_BASENAME'] + 'bck_ql_' + date_chosen.strftime('%Y%m%d') 
+                    + '_cycle_max' + '.png').format(path)
+                 )
+            path.mkdir(parents=True,exist_ok=True)
+            fig.savefig(str('{}/' + confDict['NC_L2_BASENAME'] + 'bck_ql_' + date_chosen.strftime('%Y%m%d') + '_cycle_max' + '.png').format(path)
+                        ,transparent=False, bbox_inches='tight')

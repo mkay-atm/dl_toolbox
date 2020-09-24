@@ -19,7 +19,8 @@ class hpl_files(object):
     def __init__(self, name, time):
         self.name = name
         self.time = time
-    
+        
+    @staticmethod
     def make_file_list(date_chosen, confDict, url):
         path = Path(url + '/'
             + date_chosen.strftime('%Y') + '/'
@@ -85,18 +86,22 @@ class hpl_files(object):
         return hpl_files(file_list, file_time)   
 
     #def gen_filedict(filename):
+    @staticmethod
     def split_header(string):
         return [x.strip() for x in re.split('[:\=\-]', re.sub('[\n\t]','',string),1)]
+    @staticmethod
     def split_data(string):
         return re.split('\s+', re.sub('\n','',string).strip())
     #switch_str = {True: split_header(line), False: split_data(line)}
+    @staticmethod
     def split_default(string):
         return string
+    @staticmethod
     def switch(case,string):
         return {
             True: hpl_files.split_header(string),
             False: hpl_files.split_data(string)}.get(case, hpl_files.split_default)
-  
+    @staticmethod
     def reader_idx(hpl_list,confDict,chunks=False):
         print(hpl_list.time)
         time_file = pd.to_datetime(hpl_list.time)
@@ -107,7 +112,8 @@ class hpl_files(object):
                               for ii,iip1 in zip(time_vec[0:-1],time_vec[1::])]
         if chunks == False:
             return np.arange(0,len(hpl_list.time))
-    
+
+    @staticmethod
     def combine_lvl1(hpl_list, confDict, read_idx, date_chosen):
         ds= xr.concat((hpl_files.read_hpl(hpl_list.name[idx],confDict) for ii,idx in enumerate(read_idx))
                           ,dim='time'#, combine='nested'#,compat='identical'
@@ -122,6 +128,12 @@ class hpl_files(object):
         ds.attrs['Processing_date']= str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
         ds.attrs['Author']= confDict['NC_AUTHOR']
         ds.attrs['Licence']= confDict['NC_LICENCE'] 
+        # add configuration used to create the file
+        configuration = """"""
+        for dd in confDict:
+            configuration += dd + '=' + confDict[dd]+'\n'
+        ds.attrs['File_Configuration']= configuration
+
         # adjust time variable to double (aka float64)
         ds.time.data.astype(np.float64)
         path= Path(confDict['NC_L1_PATH'] + '/'
@@ -129,15 +141,24 @@ class hpl_files(object):
                     + date_chosen.strftime("%Y%m"))
         path.mkdir(parents=True, exist_ok=True)
         path= path / Path(confDict['NC_L1_BASENAME'] + 'v' + confDict['VERSION'] + '_'  + date_chosen.strftime("%Y%m%d")+ '.nc')
-        
+        if 'UTC_OFFSET' in confDict:
+            time_offset = np.timedelta64(int(confDict['UTC_OFFSET']), 'h') 
+            time_delta = int(confDict['UTC_OFFSET'])
+        else:
+            time_offset = np.timedelta64(0, 'h') 
+            time_delta = 0
         # compress variables
         comp = dict(zlib=True, complevel=9)
         encoding = {var: comp for var in np.hstack([ds.data_vars,ds.coords])}
+        ds.time.attrs['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
+        ds.time.encoding['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
         ds.to_netcdf(path, encoding=encoding)
+
 #         ds.to_netcdf(path, unlimited_dims={'time':True}, encoding=encoding)
         ds.close()
         return path
-    
+
+    @staticmethod
     def read_hpl(filename, confDict):
         if not filename.exists():
             print("Oops, file doesn't exist!")
@@ -231,23 +252,44 @@ class hpl_files(object):
                                ).values / 10**9
         time_ds= [x+(datetime.timedelta(days=1)).total_seconds()
                     if time_tmp[0]-x>0 else x
-                   for x in time_tmp]          
-        range_bnds= np.array([mdata['range gate'][0,:] * float(mheader['Range gate length (m)'])
-                                                    ,(mdata['range gate'][0,:] + 1.) * float(mheader['Range gate length (m)'])]
-                                                    ).T        
+                   for x in time_tmp]
+        # if 'UTC_OFFSET' in confDict:
+        #     time_offset = np.timedelta64(int(confDict['UTC_OFFSET']), 'h') 
+        #     time_delta = int(confDict['UTC_OFFSET'])
+        # else:
+        #     time_offset = np.timedelta64(0, 'h') 
+        #     time_delta = 0    
+        # range_bnds = np.array([ mdata['range gate'][0,:] * float(mheader['Range gate length (m)'])
+        #                                             ,(mdata['range gate'][0,:] + 1.) * float(mheader['Range gate length (m)'])]
+        #                                             ).T
+        range_bnds = np.array([ 
+                      (mdata['range gate'][0,:] * ( float(mheader['Range gate length (m)'])/float(mheader['Gate length (pts)'])
+                          * float(confDict['NUMBER_OF_GATES']) 
+                          * (float(mheader['Gate length (pts)']), 1)[int(float(mheader['Range gate length (m)'])/float(mheader['Gate length (pts)']) % 3)]
+                        )/float(confDict['NUMBER_OF_GATES']))
+                    , ((mdata['range gate'][0,:]+(1, 0)[int(float(mheader['Range gate length (m)'])/float(mheader['Gate length (pts)']) % 3)]) 
+                          * (float(mheader['Range gate length (m)'])/float(mheader['Gate length (pts)']) * float(confDict['NUMBER_OF_GATES']) 
+                          * (float(mheader['Gate length (pts)']), 1)[int(float(mheader['Range gate length (m)'])/float(mheader['Gate length (pts)']) % 3)])/float(confDict['NUMBER_OF_GATES'])
+                          + (0, float(mheader['Range gate length (m)']))[int(float(mheader['Range gate length (m)'])/float(mheader['Gate length (pts)']) % 3)]
+                    )]
+                    ).T 
+        range_mid = range_bnds.mean(axis=-1)                                           
         tgint = (2*(range_bnds[0,1]-range_bnds[0,0]) / 3e8).astype('f4')
 #         SNR_tmp= np.copy(np.squeeze(mdata['snrp1']))-1
         SNR_tmp= np.copy(mdata['snrp1'])-1
-        SNR_tmp[SNR_tmp<=0]= np.nan
+        # SNR_tmp[SNR_tmp<=0]= np.nan
+        SNR_tmp[abs(SNR_tmp)<=np.finfo(np.float32).eps] = np.finfo(np.float32).eps
         ## calculate SNR in dB
-        SNR_dB= 10*np.log10(np.ma.masked_values(SNR_tmp, np.nan)).filled(np.nan)
+        # SNR_dB= 10*np.log10(np.ma.masked_values(SNR_tmp, np.nan)).filled(np.nan)
+        SNR_dB= 10*np.log10(SNR_tmp.astype(np.complex)).real
         ## calculate measurement uncertainty, with consensus indices
         sigma_tmp= proc.hpl2netCDF_client.calc_sigma_single(SNR_dB
                                         ,int(mheader['Gate length (pts)'])
                                         ,int(confDict['PULSES_PER_DIRECTION'])
                                         ,float(mheader['Gate length (pts)'])/tgint/2*float(confDict['SYSTEM_WAVELENGTH'])
                                         ,1.316)
-        return xr.Dataset({ 
+                
+        return xr.Dataset({                 
                           'dv': (['time', 'range']
 #                                 , np.squeeze(mdata['velocity'])
                                 , mdata['velocity']
@@ -458,16 +500,18 @@ class hpl_files(object):
     #                     , 'pitch': ('time', np.squeeze(mbeam['pitch']))
     #                     , 'roll': ('time', np.squeeze(mbeam['roll']))
                           }
-                        , coords= {  'time': ( ['time']
+                       , coords= {  'time': ( ['time']
                                     , time_ds#.astype(np.float64)
-                                    ,{'units': 'seconds since 1970-01-01 00:00:00' 
+                                    ,{ #'units': ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))] 
+                                      'units': 'seconds since 1970-01-01 00:00:00' 
                                      ,'standard_name': 'time'
                                      ,'long_name': 'Time'
                                      ,'calendar':'gregorian'
                                      ,'_CoordinateAxisType': 'time'
                                      })
                                      ,'range': (['range']
-                                             , ((mdata['range gate'][0,:] + 0.5) * np.float32(mheader['Range gate length (m)'])).astype('f4')
+                                             , range_mid.astype('f4')
+                                            #  , ((mdata['range gate'][0,:] + 0.5) * np.float32(mheader['Range gate length (m)'])).astype('f4')
                                              , {'units' : 'm'
                                              ,'long_name': 'line of sight distance towards the center of each range gate'
                                              ,'_FillValue': -999.

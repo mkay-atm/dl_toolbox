@@ -29,14 +29,16 @@ def main():
                         type=str, help="path to configuration file",
                             default=default_path)
     parser.add_argument("-d", "--date", help="The Date - format YYYY-mm-dd", required=True, type=valid_date)
-    parser.add_argument('-c', '--cmd', required=True, choices=['hpl_l1', 'l1_l2','hpl_l1_l2','l1_l2wql','hpl_l1_l2wql'],
+    parser.add_argument('-c', '--cmd', required=True, choices=['hpl_l1', 'l1_l2','hpl_l1_l2','l1_l2wql','hpl_l1_l2wql','l1wql','l2wql'],
         help=textwrap.dedent(\
         '''Send a command. Supported commands:
         hpl_l1 - combines daily lvl1 files to netCDF
         l1_l2 - processes existing lvl1 netCDF files and combines to lvl2 netCDF
         hpl_l1_l2 - combines hpl to daily and processes directly to lvl2 netCDF
-        hpl_l1_l2wql - combines hpl to daily and processes directly to lvl2 netCDF
-        l1_l2wql - combines hpl to daily and processes directly to lvl2 netCDF
+        hpl_l1_l2wql - combines hpl to daily and processes directly to lvl2 netCDF and creates quicklooks
+        l1_l2wql - combines hpl to daily and processes directly to lvl2 netCDF and creates quicklooks
+        l1wql - takes lvl1 netCDF file and creates backscatter quicklook
+        l2wql - takes lvl2 netCDF file and creates backscatter quicklook
         Note that directory paths will be taken from the configuration file!''')
         )
     
@@ -56,8 +58,14 @@ def main():
         proc_dl.dailylvl2()
     if args.cmd == 'l1_l2wql':
         proc_dl.dailylvl2()
-        proc_dl.lvl2ql()        
+        proc_dl.lvl2ql()
+        proc_dl.bckql()
     if args.cmd == 'hpl_l1_l2wql':
         proc_dl.dailylvl1()
         proc_dl.dailylvl2()
+        proc_dl.lvl2ql()
+        proc_dl.bckql()
+    if args.cmd == 'l1wql':
+        proc_dl.bckql()
+    if args.cmd == 'l2wql':
         proc_dl.lvl2ql()
