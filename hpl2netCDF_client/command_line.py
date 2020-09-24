@@ -10,6 +10,8 @@ import textwrap
 import sys
 import datetime
 # from version import __version__
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
 
 def valid_date(s):
     try:
