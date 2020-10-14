@@ -1302,8 +1302,20 @@ class hpl2netCDFClient(object):
             print('unable to continue processing!')
         else:
             print('processing lvl1 to lvl2...')
-        data= np.mod(ds.azi.data-ds.azi.data[0], 360)
-        cycles= get_cycles(data, int(np.median(np.sign(np.diff(np.array(data))))))
+        data = np.mod(ds.azi.data-ds.azi.data[0], 360)
+        index = np.where(abs(np.diff(data)) > 93)[0]
+        ## old method
+        # cycles = get_cycles(data, int(np.median(np.sign(np.diff(np.array(data)))))) 
+        ## new method
+        cycles = {}
+        start = 0
+        for ii,ind in enumerate(index):
+            if ind == index[-1]:
+                cycles.update( { ii: {'indices': np.arange(start, len(ds.azi)), 'values': ds.azi[start:len(ds.azi)]} })
+                # print('finished cycling!')
+            else:
+                cycles.update( { ii: {'indices': np.arange(start, ind+1), 'values': ds.azi[start:ind+1]} })
+                start = ind+1
         df= pd.DataFrame.from_dict(cycles, orient='index')
         df['indices'].apply(lambda row: len(row)).median()
 
