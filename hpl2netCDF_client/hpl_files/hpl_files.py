@@ -122,7 +122,11 @@ class hpl_files(object):
         ## delete 'delv' variable, if all entries are NaN.
         if (ds.delv == -999.).all():
           print('dropping "delv" / "spectral width", because all are NaN!')
-          ds = ds._drop_vars(['delv'])
+          ds = ds.drop_vars(['delv'])
+          ##!!!NOTE!!!##
+          # There was an issue under windows, possible due to a version problem,
+          # so in case an Attribute error occurs change line 125 to following
+          #ds = ds._drop_vars(['delv'])
         
         ds.attrs['Title']= confDict['NC_TITLE']
         ds.attrs['Institution']= confDict['NC_INSTITUTION']
