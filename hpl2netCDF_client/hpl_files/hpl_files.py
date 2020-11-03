@@ -119,6 +119,11 @@ class hpl_files(object):
                           ,dim='time'#, combine='nested'#,compat='identical'
                           ,data_vars='minimal'
                           ,coords='minimal')
+        ## delete 'delv' variable, if all entries are NaN.
+        if (ds.delv == -999.).all():
+          print('dropping "delv" / "spectral width", because all are NaN!')
+          ds = ds._drop_vars(['delv'])
+        
         ds.attrs['Title']= confDict['NC_TITLE']
         ds.attrs['Institution']= confDict['NC_INSTITUTION']
         ds.attrs['Contact_person']= confDict['NC_CONTACT_PERSON']
@@ -200,7 +205,11 @@ class hpl_files(object):
                     continue # stop the loop and continue with the next line
 
                 tmp = hpl_files.switch(header_info,line)
-
+                ## this temporary variable indicates whether the a given data line includes
+                # the spectral width or not, so 2d information can be distinguished from
+                # 1d information.
+                indicator = len(line[:10].split())
+                
                 if header_info == True:
                     try:
                         if tmp[0][0:1] == 'i':
@@ -228,22 +237,42 @@ class hpl_files(object):
                                                ,('pitch','f4')
                                                ,('roll','f4')]))
                     mdata = np.recarray((n_o_rays,int(mheader['Number of gates'])),
-                                        dtype=np.dtype([('range gate', 'i2')
-                                               , ('velocity', 'f4')
-                                               ,('snrp1','f4')
-                                               ,('beta','f4')]))
-                if (len(tmp) == 5) & (header_info == False):
+                                          dtype=np.dtype([('range gate', 'i2')
+                                                ,('velocity', 'f4')
+                                                ,('snrp1','f4')
+                                                ,('beta','f4')
+                                                ,('dels', 'f4')]))
+                    # mdata = np.recarray((n_o_rays,int(mheader['Number of gates'])),
+                    #                    dtype=np.dtype([('range gate', 'i2')
+                    #                           , ('velocity', 'f4')
+                    #                           ,('snrp1','f4')
+                    #                           ,('beta','f4')]))
+                if (len(tmp) == 5) & (header_info == False) & (indicator==1):
                     dt=np.dtype([('time', 'f8'), ('azimuth', 'f4'),('elevation','f4'),('pitch','f4'),('roll','f4')])
                     if counter_jj < n_o_rays:
                         mbeam[counter_jj] = np.array(tuple(tmp), dtype=dt)
                     counter_jj = counter_jj+1
                         #mbeam.append(tmp)
-                elif (len(tmp) == 4) & (header_info == False):
-                    dt=np.dtype([('range gate', 'i2'), ('velocity', 'f4'),('snrp1','f4'),('beta','f4')])
-                    mdata[counter_jj-1,counter_ii] = np.array(tuple(tmp), dtype=dt)
-                    counter_ii = counter_ii+1
-                    if counter_ii == int(confDict['NUMBER_OF_GATES']):
-                        counter_ii = 0
+                # elif (len(tmp) == 4) & (header_info == False):
+                #    dt=np.dtype([('range gate', 'i2'), ('velocity', 'f4'),('snrp1','f4'),('beta','f4')])
+                #    mdata[counter_jj-1,counter_ii] = np.array(tuple(tmp), dtype=dt)
+                #    counter_ii = counter_ii+1
+                #    if counter_ii == int(confDict['NUMBER_OF_GATES']):
+                #        counter_ii = 0
+                elif (header_info == False) & (indicator==2):
+                      dt=np.dtype([('range gate', 'i2')
+                      , ('velocity', 'f4')
+                      ,('snrp1','f4')
+                      ,('beta','f4')
+                      ,('dels', 'f4')])
+                      if (len(tmp) == 4):
+                        tmp.append('-999')
+                        mdata[counter_jj-1,counter_ii] = np.array(tuple(tmp), dtype=dt)
+                      elif (len(tmp) == 5):
+                        mdata[counter_jj-1,counter_ii] = np.array(tuple(tmp), dtype=dt)
+                      counter_ii = counter_ii+1
+                      if counter_ii == int(confDict['NUMBER_OF_GATES']):
+                          counter_ii = 0
         
 #         time_tmp= ((pd.to_datetime(datetime.datetime.strptime(mheader['Start time'], '%Y%m%d %H:%M:%S.%f').date())
 #                                              +pd.to_timedelta(np.squeeze(mbeam['time']), unit = 'h')).astype(np.int64) / 10**9).values
@@ -329,6 +358,17 @@ class hpl_files(object):
                                      ,'long_name' : 'attenuated backscatter coefficient'
                                      ,'standard_name' : 'volume_attenuated_backwards_scattering_function_in_air'
                                      ,'comments' : 'determined from SNR by means of lidar equation; uncalibrated and uncorrected'  
+                                     ,'_FillValue': -999.
+                                     ,'_CoordinateAxes': 'time range'
+                                     }
+                                   )
+                        , 'delv': (['time', 'range']
+#                                    , np.squeeze(mdata['beta'])
+                                   , mdata['dels']                               
+                                   , {'units': 'm s-1'
+                                     ,'long_name' : 'spectral width of detected signal'
+                                     ,'standard_name' : 'spectral_width'
+                                     ,'comments' : 'currently not part of the standard data product'  
                                      ,'_FillValue': -999.
                                      ,'_CoordinateAxes': 'time range'
                                      }
