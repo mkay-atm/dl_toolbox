@@ -709,7 +709,7 @@ class hpl2netCDFClient(object):
                 n_good[kk, :] = n_good_kk
                 V_r=np.ma.masked_where( (np.isnan(VR_CNSmax)) #& (np.tile(n_good_kk, (azi_mean.shape[0], 1)) < 4)
                                     , VR_CNSmax).T[..., None]
-                V_in=np.ma.masked_where( (np.isnan(VR_CNSmax)) & (np.tile(n_good_kk, (azi_mean.shape[0], 1)) < 4)
+                V_in=np.ma.masked_where( (np.isnan(VR_CNSmax)) | (np.tile(n_good_kk, (azi_mean.shape[0], 1)) < 4)
                                     , VR_CNSmax)
                 A = build_Amatrix(azi_mean, ele_cns)
                 # A[abs(A)<1e-3] = 0
