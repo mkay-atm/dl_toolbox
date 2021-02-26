@@ -709,8 +709,8 @@ class hpl2netCDFClient(object):
                 n_good[kk, :] = n_good_kk
                 V_r=np.ma.masked_where( (np.isnan(VR_CNSmax)) #& (np.tile(n_good_kk, (azi_mean.shape[0], 1)) < 4)
                                     , VR_CNSmax).T[..., None]
-                V_in=np.ma.masked_where( (np.isnan(VR_CNSmax)) | (np.tile(n_good_kk, (azi_mean.shape[0], 1)) < 4)
-                                    , VR_CNSmax)
+                mask_V_in = (np.isnan(VR_CNSmax)) | (np.tile(n_good_kk, (azi_mean.shape[0], 1)) < 4)
+                V_in=np.ma.masked_where( mask_V_in, VR_CNSmax)
                 A = build_Amatrix(azi_mean, ele_cns)
                 # A[abs(A)<1e-3] = 0
                 A_r = np.tile( A,  (VR_CNSmax.shape[1], 1, 1))
@@ -758,8 +758,8 @@ class hpl2netCDFClient(object):
                 R2[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4] = np.nan
                 
 
-                mask_A = np.tile( V_in.T[..., None].mask, (1, 1, 3))
-                A_r_m = np.ma.masked_where( mask_A, A_r)
+                mask_A = np.tile( mask_V_in.T[..., None], (1, 1, 3))
+                # A_r_m = np.ma.masked_where( mask_A, A_r)
                 A_r_T = np.einsum('...ij->...ji', A_r)
                 Spp =  np.apply_along_axis(np.diag, 1, 1/np.sqrt(np.einsum('...ii->...i', A_r_T @ A_r)))
                 Z = np.ma.masked_where( mask_A, A_r @ Spp)
