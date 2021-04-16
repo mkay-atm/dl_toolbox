@@ -582,6 +582,7 @@ class hpl2netCDFClient(object):
         beta= ds_tmp.beta.data[elevation < 89]
 
         height= ds_tmp.range.data*np.sin(np.nanmedian(elevation[elevation < 89])*np.pi/180)
+        width= ds_tmp.range.data*2*np.cos(np.nanmedian(elevation[elevation < 89])*np.pi/180)
         height_bnds= ds_tmp.range_bnds.data
         height_bnds[:,0]= np.sin(np.nanmedian(elevation[elevation < 89])*np.pi/180)*(height_bnds[:,0])
         height_bnds[:,1]= np.sin(np.nanmedian(elevation[elevation < 89])*np.pi/180)*(height_bnds[:,1])
@@ -1026,6 +1027,19 @@ class hpl2netCDFClient(object):
                                             ,{'units': 'm'                                         
                                             }
                                             )
+                             ,'width': (['height']
+                                            # ,np.array([(np.arange(0,n_gates)
+                                            #             * float(confDict['RANGE_GATE_LENGTH'])*np.sin(np.nanmedian(elevation)*np.pi/180))
+                                            #             ,((np.arange(0,n_gates) + 1.)
+                                            #             * float(confDict['RANGE_GATE_LENGTH'])*np.sin(np.nanmedian(elevation)*np.pi/180))
+                                            #             ]).T
+                                        , np.float32(width)
+                                        ,{ 'units': 'm'
+                                          ,'comments': 'Measurement horizontal resolution of the data in the atmosphere'
+                                          ,'standard_name': 'horizontal_sample_width'
+                                          ,'_FillValue': -999.
+                                         }
+                                        )
                             }
                             , coords= { 'height': (['height']
                                                     # ,((np.arange(0,n_gates)+.5)*int(confDict['RANGE_GATE_LENGTH'])
