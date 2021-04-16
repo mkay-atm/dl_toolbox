@@ -1070,12 +1070,44 @@ class hpl2netCDFClient(object):
         ds_lvl2.attrs['Institution']= confDict['NC_INSTITUTION']
         ds_lvl2.attrs['Contact_person']= confDict['NC_CONTACT_PERSON']
         ds_lvl2.attrs['Source']= "HALO Photonics Doppler lidar (production number: " + confDict['SYSTEM_ID'] + ')'
-        ds_lvl2.attrs['History']= confDict['NC_HISTORY']
+        # ds_lvl2.attrs['History']= confDict['NC_HISTORY']
         ds_lvl2.attrs['Conventions']= confDict['NC_CONVENTIONS']
         ds_lvl2.attrs['Processing_date']= str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
         ds_lvl2.attrs['Author']= confDict['NC_AUTHOR']
         ds_lvl2.attrs['Licence']= confDict['NC_LICENCE'] 
 
+        # attributes for operational use of netCDFs, see E-Profile wind profiler netCDF version 1.7
+        if 'WIGOS_ID' in confDict:
+            ds_lvl2.attrs['wigos_station_id']= confDict['WIGOS_ID']
+        else:
+            ds_lvl2.attrs['wigos_station_id']= 'N/A'
+
+        if 'WMO_ID' in confDict:
+            ds_lvl2.attrs['wmo_id']= confDict['WMO_ID']
+        else:
+            ds_lvl2.attrs['wmo_id']= 'N/A'
+
+        if 'PI_ID' in confDict:
+            ds_lvl2.attrs['principal_investigator']= confDict['PI_ID']
+        else:
+            ds_lvl2.attrs['principal_investigator']= 'N/A'
+
+        if 'instrument_serial_number' in confDict:
+            ds_lvl2.attrs['instrument_serial_number']= confDict['SERIAL_NUMBER']
+        else:
+            ds_lvl2.attrs['instrument_serial_number']= ' '
+
+        ds_lvl2.attrs['History']= confDict['NC_HISTORY'] + ' version ' + confDict['VERSION'] + ' on ' + str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
+        
+        if 'OPERATIONAL' in confDict:
+            if bool(int(confDict['OPERATIONAL'])):
+                ds_lvl2.attrs['source']= 'ground based remote sensing'
+                ds_lvl2.attrs['references']= 'Doppler lidar PPI-based retrieval, see VAD'
+                # set all uncertainties to NaN-Value
+                for item in ['erru', 'errv', 'errw', 'errwspeed', 'errwdir']:
+                    ds_lvl2[item] = ds_lvl2[item].where(ds_lvl2[item] == -999., other=-999.)
+        #             ds_lvl2[item] = ds_lvl2[item].where(np.isnan(ds_lvl2[item]), other=np.nan)
+        
         path= Path(confDict['NC_L2_PATH'] + '/' 
                     + date_chosen.strftime("%Y") + '/'
                     + date_chosen.strftime("%Y%m"))
