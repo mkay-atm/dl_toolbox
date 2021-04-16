@@ -1078,7 +1078,8 @@ class hpl2netCDFClient(object):
         ## add configuration used to create the file
         configuration = """"""
         for dd in confDict:
-            configuration += dd + '=' + confDict[dd]+'\n'
+            if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
+                configuration += dd + '=' + confDict[dd]+'\n'
         ds_lvl2.attrs['File_Configuration']= configuration
         ## save file to path
         ds_lvl2.to_netcdf(path, unlimited_dims={'time':True}, encoding=encoding)
