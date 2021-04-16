@@ -85,8 +85,19 @@ class hpl_files(object):
                                                      + "_%Y%m%d_%H%M%S")
                          for x in file_list]
         return hpl_files(file_list, file_time)   
+    
+    # function used for calculation of range bounds
+    @staticmethod
+    def range_bnds_calc(rg_vec, confDict):
+        '''Calculate range bounds, also accounting for overlapping gates. If your hpl-files contain overlapping gates please add the "OVERLAPPING_GATES" argument to the configuration file.'''
+        if 'OVERLAPPING_GATES' in confDict:  
+            r = lambda x,idx: (x + idx) *  float(confDict['RANGE_GATE_LENGTH'])/(1,float(confDict['NUMBER_OF_GATE_POINTS']))[int(confDict['OVERLAPPING_GATES'])]
+        else:
+            r = lambda x,idx: (x + idx) *  float(confDict['RANGE_GATE_LENGTH'])
 
-    #def gen_filedict(filename):
+        return np.array([r(rg_vec, 0), r(rg_vec, 1)]).T
+    
+    
     @staticmethod
     def split_header(string):
         return [x.strip() for x in re.split('[:\=\-]', re.sub('[\n\t]','',string),1)]
