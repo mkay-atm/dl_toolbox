@@ -20,7 +20,7 @@ setup(name='hpl2netCDF_client',
       install_requires=[
           'numpy',
           'scipy',
-          'xarray',
+          'xarray >= 0.17.0',
           'pandas',
           'datetime',
           'argparse',
