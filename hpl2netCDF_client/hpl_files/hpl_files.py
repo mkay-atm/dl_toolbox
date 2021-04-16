@@ -189,7 +189,6 @@ class hpl_files(object):
         else:
             print('reading file: ' + filename.name)
         with filename.open() as infile:
-            #result = {}
             header_info = True
             mheader = {}
             for line in infile:
@@ -198,8 +197,9 @@ class hpl_files(object):
                     ## Adjust header in order to extract data formats more easily
                     ## 1st for 'Data line 1' , i.e. time of beam etc.
                     tmp = [x.split() for x in mheader['Data line 1'].split('  ')]
-                    tmp.append(" ".join([tmp[2][2],tmp[2][3]]))
-                    tmp.append(" ".join([tmp[2][4],tmp[2][5]]))
+                    if len(tmp) > 3:
+                        tmp.append(" ".join([tmp[2][2],tmp[2][3]]))
+                        tmp.append(" ".join([tmp[2][4],tmp[2][5]]))
                     tmp[0] = " ".join(tmp[0])
                     tmp[1] = " ".join(tmp[1])
                     tmp[2] = " ".join([tmp[2][0],tmp[2][1]])
@@ -219,7 +219,6 @@ class hpl_files(object):
                     tmp = mheader['Data line 2 (format)'].split(',1x,')
                     mheader['Data line 2 (format)'] = tmp
                     ## start counter for time and range gates
-                    counter_ii = 0
                     counter_jj = 0
                     continue # stop the loop and continue with the next line
 
@@ -228,7 +227,7 @@ class hpl_files(object):
                 # the spectral width or not, so 2d information can be distinguished from
                 # 1d information.
                 indicator = len(line[:10].split())
-                
+
                 if header_info == True:
                     try:
                         if tmp[0][0:1] == 'i':
@@ -241,88 +240,60 @@ class hpl_files(object):
                         else:
                             tmp_tmp = {'blank': 'nothing'}
                     mheader.update(tmp_tmp)
-                elif (header_info == False) & (counter_ii == 0) & (counter_jj == 0):
-#                     if (confDict['SCAN_TYPE'] == 'Stare') | (confDict['SCAN_TYPE'] == 'CSM'):
-#                     # this works 99 percent of the time, if no broken files are registered
-#                     if (confDict['SCAN_TYPE'] != 'VAD'):
-#                         n_o_rays= (len(filename.open().read().splitlines())-17)//(int(mheader['Number of gates'])+1)
-#                     else:
-#                         n_o_rays= int(mheader['No. of rays in file'])
-                    n_o_rays= (len(filename.open().read().splitlines())-17)//(int(mheader['Number of gates'])+1)
-                    mbeam = np.recarray((n_o_rays,),
-                                        dtype=np.dtype([('time', 'f8')
-                                               , ('azimuth', 'f4')
-                                               ,('elevation','f4')
-                                               ,('pitch','f4')
-                                               ,('roll','f4')]))
-                    mdata = np.recarray((n_o_rays,int(mheader['Number of gates'])),
-                                          dtype=np.dtype([('range gate', 'i2')
-                                                ,('velocity', 'f4')
-                                                ,('snrp1','f4')
-                                                ,('beta','f4')
-                                                ,('dels', 'f4')]))
-                    # mdata = np.recarray((n_o_rays,int(mheader['Number of gates'])),
-                    #                    dtype=np.dtype([('range gate', 'i2')
-                    #                           , ('velocity', 'f4')
-                    #                           ,('snrp1','f4')
-                    #                           ,('beta','f4')]))
-                if (len(tmp) == 5) & (header_info == False) & (indicator==1):
-                    dt=np.dtype([('time', 'f8'), ('azimuth', 'f4'),('elevation','f4'),('pitch','f4'),('roll','f4')])
-                    if counter_jj < n_o_rays:
-                        mbeam[counter_jj] = np.array(tuple(tmp), dtype=dt)
-                    counter_jj = counter_jj+1
-                        #mbeam.append(tmp)
-                # elif (len(tmp) == 4) & (header_info == False):
-                #    dt=np.dtype([('range gate', 'i2'), ('velocity', 'f4'),('snrp1','f4'),('beta','f4')])
-                #    mdata[counter_jj-1,counter_ii] = np.array(tuple(tmp), dtype=dt)
-                #    counter_ii = counter_ii+1
-                #    if counter_ii == int(confDict['NUMBER_OF_GATES']):
-                #        counter_ii = 0
-                elif (header_info == False) & (indicator==2):
-                      dt=np.dtype([('range gate', 'i2')
-                      , ('velocity', 'f4')
-                      ,('snrp1','f4')
-                      ,('beta','f4')
-                      ,('dels', 'f4')])
-                      if (len(tmp) == 4):
-                        tmp.append('-999')
-                        mdata[counter_jj-1,counter_ii] = np.array(tuple(tmp), dtype=dt)
-                      elif (len(tmp) == 5):
-                        mdata[counter_jj-1,counter_ii] = np.array(tuple(tmp), dtype=dt)
-                      counter_ii = counter_ii+1
-                      if counter_ii == int(confDict['NUMBER_OF_GATES']):
-                          counter_ii = 0
+                elif (header_info == False):
+                    if (counter_jj == 0):
+                        n_o_rays = (len(filename.open().read().splitlines())-17)//(int(mheader['Number of gates'])+1)
+                        mbeam = np.recarray((n_o_rays,),
+                                            dtype=np.dtype([('time', 'f8')
+                                                   , ('azimuth', 'f4')
+                                                   ,('elevation','f4')
+                                                   ,('pitch','f4')
+                                                   ,('roll','f4')]))
+                        mdata = np.recarray((n_o_rays,int(mheader['Number of gates'])),
+                                              dtype=np.dtype([('range gate', 'i2')
+                                                    ,('velocity', 'f4')
+                                                    ,('snrp1','f4')
+                                                    ,('beta','f4')
+                                                    ,('dels', 'f4')]))
+                        mdata[:, :] = np.full(mdata.shape, -999.)
+
+                    # store tmp in time array
+                    if  (indicator==1):
+                        dt=np.dtype([('time', 'f8'), ('azimuth', 'f4'),('elevation','f4'),('pitch','f4'),('roll','f4')])
+                        if len(tmp) < 4:
+                            tmp.extend(['-999']*2)
+                        if counter_jj < n_o_rays:
+                            mbeam[counter_jj] = np.array(tuple(tmp), dtype=dt)
+                            counter_jj = counter_jj+1
+                    # store tmp in range gate array        
+                    elif (indicator==2):
+                        dt=np.dtype([('range gate', 'i2')
+                                     , ('velocity', 'f4')
+                                     ,('snrp1','f4')
+                                     ,('beta','f4')
+                                     ,('dels', 'f4')])
+                        ii_index = np.array(tmp[0], dtype=dt[0])
+
+                        if (len(tmp) == 4):
+                            tmp.append('-999')
+                            mdata[counter_jj-1, ii_index] = np.array(tuple(tmp), dtype=dt)
+                        elif (len(tmp) == 5):
+                            mdata[counter_jj-1, ii_index] = np.array(tuple(tmp), dtype=dt)
         
-#         time_tmp= ((pd.to_datetime(datetime.datetime.strptime(mheader['Start time'], '%Y%m%d %H:%M:%S.%f').date())
-#                                              +pd.to_timedelta(np.squeeze(mbeam['time']), unit = 'h')).astype(np.int64) / 10**9).values
+        #set time information
         time_tmp= pd.to_numeric(pd.to_timedelta(pd.DataFrame(mbeam)['time'], unit = 'h')
-                                +pd.to_datetime(datetime.datetime.strptime(mheader['Start time'], '%Y%m%d %H:%M:%S.%f').date())
-                               ).values / 10**9
-        time_ds= [x+(datetime.timedelta(days=1)).total_seconds()
-                    if time_tmp[0]-x>0 else x
-                   for x in time_tmp]
-        # if 'UTC_OFFSET' in confDict:
-        #     time_offset = np.timedelta64(int(confDict['UTC_OFFSET']), 'h') 
-        #     time_delta = int(confDict['UTC_OFFSET'])
-        # else:
-        #     time_offset = np.timedelta64(0, 'h') 
-        #     time_delta = 0    
-        # range_bnds = np.array([ mdata['range gate'][0,:] * float(mheader['Range gate length (m)'])
-        #                                             ,(mdata['range gate'][0,:] + 1.) * float(mheader['Range gate length (m)'])]
-        #                                             ).T
-        range_bnds = np.array([ 
-                      (mdata['range gate'][0,:] * ( float(mheader['Range gate length (m)'])/float(mheader['Gate length (pts)'])
-                          * float(confDict['NUMBER_OF_GATES']) 
-                          * (float(mheader['Gate length (pts)']), 1)[int(float(mheader['Range gate length (m)'])/float(mheader['Gate length (pts)']) % 3)]
-                        )/float(confDict['NUMBER_OF_GATES']))
-                    , ((mdata['range gate'][0,:]+(1, 0)[int(float(mheader['Range gate length (m)'])/float(mheader['Gate length (pts)']) % 3)]) 
-                          * (float(mheader['Range gate length (m)'])/float(mheader['Gate length (pts)']) * float(confDict['NUMBER_OF_GATES']) 
-                          * (float(mheader['Gate length (pts)']), 1)[int(float(mheader['Range gate length (m)'])/float(mheader['Gate length (pts)']) % 3)])/float(confDict['NUMBER_OF_GATES'])
-                          + (0, float(mheader['Range gate length (m)']))[int(float(mheader['Range gate length (m)'])/float(mheader['Gate length (pts)']) % 3)]
-                    )]
-                    ).T 
-        range_mid = range_bnds.mean(axis=-1)                                           
-        tgint = (2*(range_bnds[0,1]-range_bnds[0,0]) / 3e8).astype('f4')
+                            +pd.to_datetime(datetime.datetime.strptime(mheader['Start time'], '%Y%m%d %H:%M:%S.%f').date())
+                           ).values / 10**9
+        time_ds= [ x+(datetime.timedelta(days=1)).total_seconds()
+                  if time_tmp[0]-x>0 else x
+                  for x in time_tmp
+                 ]
+        
+        #calculate range in meters from range gate number, gate length
+        range_bnds = hpl_files.range_bnds_calc(mdata['range gate'][0,:], confDict)
+        range_mid = range_bnds.mean(axis=-1) 
+        tgint = (2*np.array(confDict['RANGE_GATE_LENGTH'], dtype='f4') / 3e8).astype('f4')
+    
 #         SNR_tmp= np.copy(np.squeeze(mdata['snrp1']))-1
         SNR_tmp= np.copy(mdata['snrp1'])-1
         # SNR_tmp[SNR_tmp<=0]= np.nan
