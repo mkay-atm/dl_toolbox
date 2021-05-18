@@ -147,7 +147,7 @@ class hpl_files(object):
         ## choose only timestamp within a daily range
         start_dt = (pd.to_datetime(date_chosen.date()) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
         end_dt = (pd.to_datetime(date_chosen  + datetime.timedelta(days= +1)) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
-        ds = ds.where( (ds.time >= start_dt) & (ds.time <= end_dt), drop=True) 
+        ds = ds.isel(time=np.where((ds.time >= start_dt) & (ds.time <= end_dt))[0]) 
 
         ds.attrs['Title']= confDict['NC_TITLE']
         ds.attrs['Institution']= confDict['NC_INSTITUTION']
