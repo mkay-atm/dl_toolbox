@@ -526,12 +526,33 @@ class hpl2netCDFClient(object):
     def dailylvl1(self):
         date_chosen = self.date2proc
         confDict= config.gen_confDict(url= self.config_dir)
-        hpl_list= hpl_files.make_file_list(date_chosen , confDict, url=confDict['PROC_PATH'])
+        hpl_list= hpl_files.make_file_list(date_chosen, confDict, url=confDict['PROC_PATH'])
         if not hpl_list.name:
             print('no files found')
         else:
             print('combining files to daily lvl1...')
             print(' ...')
+        ## look at the previous and following day for potential files
+        # and add to hpl_list
+        hpl_listm1 = hpl_files.make_file_list(date_chosen + datetime.timedelta(days= -1), confDict, url=confDict['PROC_PATH'])
+        hpl_listp1 = hpl_files.make_file_list(date_chosen + datetime.timedelta(days= +1), confDict, url=confDict['PROC_PATH'])
+        namelist = hpl_list.name
+        timelist = hpl_list.time
+
+        if  hpl_listm1.time:
+            if date_chosen - hpl_listm1.time[-1] <= datetime.timedelta(minutes=30):
+                namelist = [hpl_listm1.name[-1]] + namelist
+                timelist = [hpl_listm1.time[-1]] + timelist
+                print('adding last .hpl of previous day before')
+
+        if  hpl_listp1.time:
+            if hpl_listp1.time[0] - date_chosen  <= datetime.timedelta(days=1, minutes=30):
+                namelist = namelist + [hpl_listp1.name[0]]
+                timelist = timelist + [hpl_listp1.time[0]]
+                print('adding first .hpl of following day after')
+        
+        hpl_list = hpl_files(namelist, timelist)
+
         read_idx= hpl_files.reader_idx(hpl_list,confDict,chunks=False)
         nc_name= hpl_files.combine_lvl1(hpl_list,confDict,read_idx,date_chosen)
         print(nc_name)
@@ -546,7 +567,7 @@ class hpl2netCDFClient(object):
                     + date_chosen.strftime("%Y") + '/'
                     + date_chosen.strftime("%Y%m")
                   )
-        #tub_dlidVAD143_l1_any_v00_20190607000000.nc
+        
         mylist= list(path.glob('**/' + confDict['NC_L1_BASENAME'] + '*' + date_chosen.strftime("%Y%m%d")+ '*.nc'))
         print(mylist[0])
         if len(mylist)>1:
@@ -570,7 +591,7 @@ class hpl2netCDFClient(object):
         n= ds_tmp.prf.data
                     # number of points per range gate
         M= ds_tmp.nsmpl.data
-                    # halöf of detector bandwidth in velocity space
+                    # half of detector bandwidth in velocity space
         B= ds_tmp.nqv.data
                     
         # filter Stares within scan
@@ -842,6 +863,9 @@ class hpl2netCDFClient(object):
         qnvrad = nvrad>=int(confDict['N_VRAD_THRESHOLD'])
 
         qwind = qspeed & qnvrad & qcn & qr2
+        qu = np.copy(qspeed)
+        qv = np.copy(qspeed)
+        qw = np.copy(qspeed)
         # qspeed = qspeed & qnvrad
         qspeed = qwind
         speed[~qspeed] = -999.
@@ -864,28 +888,64 @@ class hpl2netCDFClient(object):
             print('all retrieved velocities are NaN -> check nvrad threshold!')
         ## save processed data to netCDF
         
-        ds_lvl2= xr.Dataset({ 'wspeed': (['time', 'height']
+        ## add configuration used to create the file
+        configuration = """"""
+        for dd in confDict:
+            if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
+                configuration += dd + '=' + confDict[dd]+'\n'
+
+        ds_lvl2= xr.Dataset({ 'config': ([]
+                                        , configuration
+                                        , {'standard_name' : 'configuration_file'}
+                                        )
+                            , 'wspeed': (['time', 'height']
                                         , np.float32(speed)
                                         , {'units': 'm s-1'
+                                        , 'comments': 'Scalar wind speed (amount of vector)'
                                         , 'standard_name' : 'wind_speed'
                                         , 'long_name' : 'Wind Speed' 
                                         ,'_FillValue' : -999.
                                         }
                                         )
-
-                            ,'qwind': (['time', 'height']
+                            , 'qwind': (['time', 'height']
                                         , qwind.astype(np.int8)
-                                        , {'comments' : str('quality mask of wind (u,v,w,speed,direction) and corresponding errors,'
+                                        , {'comments' : str('quality flag 0 or 1 for u, v, w, wspeed, wdir and corresponding errors,'
                                             + '(good quality data = WHERE( R2 > ' + confDict['R2_THRESHOLD'] 
                                             + 'AND CN < ' + confDict['CN_THRESHOLD'] 
                                             + 'AND NVRAD > '+ confDict['N_VRAD_THRESHOLD']  + ')')
-                                        ,'long_name': 'quality mask of wind'
+                                        ,'long_name': 'wind_quality_flag'
                                         ,'_FillValue': np.array(-128).astype(np.int8)
                                         ,'flag_values': np.arange(0,2).astype(np.int8)
                                         ,'flag_meanings': 'quality_bad quality_good'
                                         }
                                         )
-
+                            , 'qu': (['time', 'height']
+                                        , qu.astype(np.int8)
+                                        , {'comments' : 'quality flag 0 or 1 for u and corresponding error'
+                                        ,'long_name': 'quality_flag_u'
+                                        ,'_FillValue': np.array(-128).astype(np.int8)
+                                        ,'flag_values': np.arange(0,2).astype(np.int8)
+                                        ,'flag_meanings': 'quality_bad quality_good'
+                                        }
+                                        )
+                            , 'qv': (['time', 'height']
+                                        , qv.astype(np.int8)
+                                        , {'comments' : 'quality flag 0 or 1 for v and corresponding error'
+                                        ,'long_name': 'quality_flag_v'
+                                        ,'_FillValue': np.array(-128).astype(np.int8)
+                                        ,'flag_values': np.arange(0,2).astype(np.int8)
+                                        ,'flag_meanings': 'quality_bad quality_good'
+                                        }
+                                        )
+                            , 'qw': (['time', 'height']
+                                        , qw.astype(np.int8)
+                                        , {'comments' : 'quality flag 0 or 1 for w and corresponding error'
+                                        ,'long_name': 'quality_flag_w'
+                                        ,'_FillValue': np.array(-128).astype(np.int8)
+                                        ,'flag_values': np.arange(0,2).astype(np.int8)
+                                        ,'flag_meanings': 'quality_bad quality_good'
+                                        }
+                                        )                         
                             ,'errwspeed': (['time', 'height']
                                         , np.float32(errspeed)
                                         , {'units': 'm s-1'
@@ -897,6 +957,7 @@ class hpl2netCDFClient(object):
                             ,'u': (['time', 'height']
                                         , np.float32(u)
                                         , {'units': 'm s-1'
+                                        , 'comments': '"Eastward indicates" a vector component which is positive when directed eastward (negative westward). Wind is defined as a two-dimensional (horizontal) air velocity vector, with no vertical component'
                                         , 'standard_name' : 'eastward_wind'
                                         , 'long_name' : 'Zonal Wind'
                                         , '_FillValue' : -999.
@@ -913,6 +974,7 @@ class hpl2netCDFClient(object):
                             ,'v': (['time', 'height']
                                         , np.float32(v)
                                         , {'units': 'm s-1'
+                                        , 'comments': '"Northward indicates" a vector component which is positive when directed northward (negative southward). Wind is defined as a two-dimensional (horizontal) air velocity vector, with no vertical component'
                                         , 'standard_name' : 'northward_wind'
                                         , 'long_name' : 'Meridional Wind'
                                         ,'_FillValue' : -999.
@@ -929,6 +991,7 @@ class hpl2netCDFClient(object):
                             ,'w': (['time', 'height']
                                         , np.float32(w)
                                         , {'units': 'm s-1'
+                                        , 'comments': 'Vertical wind component, positive when directed upward (negative downward)'
                                         , 'standard_name' : 'upward_air_velocity'
                                         , 'long_name' : 'Upward Air Velocity'
                                         , '_FillValue' : -999.
@@ -945,6 +1008,7 @@ class hpl2netCDFClient(object):
                             ,'wdir': (['time', 'height']
                                         , np.float32(wdir)
                                         , {'units': 'degree'
+                                        , 'comments': 'Wind direction'
                                         , 'standard_name' : 'wind_from_direction'
                                         , 'long_name' : 'Wind Direction'
                                         ,'_FillValue' : -999.
@@ -969,7 +1033,7 @@ class hpl2netCDFClient(object):
                                         )  
                             ,'nvrad': (['time', 'height']
                                         , np.float32(nvrad)
-                                        , {'comments' : 'number of (averaged) radial velocities used for wind calculation'
+                                        , { 'comments' : 'number of (averaged) radial velocities used for wind calculation'
                                             , 'long_name': 'number of radial velocities'
                                             , 'standard_name': 'no_radial_velocities'
                                             , 'units': '1'
@@ -1007,7 +1071,7 @@ class hpl2netCDFClient(object):
                             , 'zsl': ([]
                                         , np.float32(confDict['SYSTEM_ALTITUDE'])
                                         , {'units': 'm'
-                                        ,'comments': 'system altitude above mean sea level'
+                                        ,'comments': 'Altitude of sensor above mean sea level'
                                         ,'standard_name': 'altitude'
                                         ,'_FillValue': -999.
                                         }
@@ -1027,7 +1091,23 @@ class hpl2netCDFClient(object):
                                             ,{'units': 'm'                                         
                                             }
                                             )
-                             ,'width': (['height']
+                            ,'frequency': ([]
+                                , np.float32(299792458 / float(confDict['SYSTEM_WAVELENGTH']))
+                                , {  'units': 'Hz'
+                                    ,'comments': 'lidar operating frequency'
+                                    ,'long_name': 'instrument_frequency'
+                                    ,'_FillValue': -999.
+                                  }
+                                )                
+                            ,'vert_res': ([]
+                                        , np.float32(np.diff(height).mean())
+                                        ,{ 'units': 'm'
+                                          ,'comments': 'Calculated from pulse wdth and beam elevation'
+                                          ,'long_name': 'Vertical_resolution_measurement'
+                                          ,'_FillValue': -999.
+                                         }
+                                        )                
+                            ,'hor_width': (['height']
                                             # ,np.array([(np.arange(0,n_gates)
                                             #             * float(confDict['RANGE_GATE_LENGTH'])*np.sin(np.nanmedian(elevation)*np.pi/180))
                                             #             ,((np.arange(0,n_gates) + 1.)
@@ -1035,7 +1115,7 @@ class hpl2netCDFClient(object):
                                             #             ]).T
                                         , np.float32(width)
                                         ,{ 'units': 'm'
-                                          ,'comments': 'Measurement horizontal resolution of the data in the atmosphere'
+                                          ,'comments': 'Calculated from beam elevation and height'
                                           ,'standard_name': 'horizontal_sample_width'
                                           ,'_FillValue': -999.
                                          }
@@ -1047,13 +1127,14 @@ class hpl2netCDFClient(object):
                                                     , np.float32(height)
                                                     ,{'units': 'm'
                                                     ,'standard_name': 'height'
-                                                    ,'comments': 'vertical distance from sensor to center of measurement'
+                                                    ,'comments': 'vertical distance from sensor to centre of range gate'
                                                     ,'bounds': 'height_bnds'
                                                     }
                                                 )
                                         , 'time': ( ['time']
                                                 , time_start.astype(np.float64)
-                                                , {  'units': 'seconds since 1970-01-01 00:00:00' 
+                                                , {  'units': 'seconds since 1970-01-01 00:00:00'
+                                                    ,'comments': 'Timestamp at the end of the averaging interval'
                                                     ,'standard_name': 'time'
                                                     ,'long_name': 'Time'
                                                     ,'calendar':'gregorian'
@@ -1121,12 +1202,12 @@ class hpl2netCDFClient(object):
 
         # ds_lvl2.time.attrs['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
         ds_lvl2.time.encoding['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
-        ## add configuration used to create the file
-        configuration = """"""
-        for dd in confDict:
-            if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
-                configuration += dd + '=' + confDict[dd]+'\n'
-        ds_lvl2.attrs['File_Configuration']= configuration
+        # ## add configuration used to create the file
+        # configuration = """"""
+        # for dd in confDict:
+        #     if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
+        #         configuration += dd + '=' + confDict[dd]+'\n'
+        # ds_lvl2.attrs['File_Configuration']= configuration
         ## save file to path
         ds_lvl2.to_netcdf(path, unlimited_dims={'time':True}, encoding=encoding)
         print(path)
