@@ -144,6 +144,11 @@ class hpl_files(object):
           # so in case an Attribute error occurs change line 126 to following
           #ds = ds._drop_vars(['delv'])
         
+        ## choose only timestamp within a daily range
+        start_dt = np.datetime64(date_chosen)
+        end_dt = np.datetime64(date_chosen  + datetime.timedelta(days= +1))
+        ds = ds.where( (ds.time >= start_dt) & (ds.time <= end_dt), drop=True) 
+
         ds.attrs['Title']= confDict['NC_TITLE']
         ds.attrs['Institution']= confDict['NC_INSTITUTION']
         ds.attrs['Contact_person']= confDict['NC_CONTACT_PERSON']
@@ -153,7 +158,8 @@ class hpl_files(object):
         ds.attrs['Processing_date']= str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
         ds.attrs['Author']= confDict['NC_AUTHOR']
         ds.attrs['Licence']= confDict['NC_LICENCE'] 
-        # add configuration used to create the file
+
+        ## add configuration as attribute used to create the file
         configuration = """"""
         for dd in confDict:
             configuration += dd + '=' + confDict[dd]+'\n'
