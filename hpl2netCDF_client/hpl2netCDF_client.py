@@ -534,27 +534,29 @@ class hpl2netCDFClient(object):
             print(' ...')
         ## look at the previous and following day for potential files
         # and add to hpl_list
-        hpl_listm1 = hpl_files.make_file_list(date_chosen + datetime.timedelta(days= -1), confDict, url=confDict['PROC_PATH'])
-        hpl_listp1 = hpl_files.make_file_list(date_chosen + datetime.timedelta(days= +1), confDict, url=confDict['PROC_PATH'])
+        print('looking at the previous day')
+        hpl_listm1 = hpl_files.make_file_list(date_chosen + datetime.timedelta(minutes=-30), confDict, url=confDict['PROC_PATH'])
+        print('looking at the following day')
+        hpl_listp1 = hpl_files.make_file_list(date_chosen + datetime.timedelta(days=+1, minutes=30), confDict, url=confDict['PROC_PATH'])
         namelist = hpl_list.name
         timelist = hpl_list.time
-
-        if  hpl_listm1.time:
+        #print('check 1')
+        if  len(hpl_listm1.time) > 0:
             if date_chosen - hpl_listm1.time[-1] <= datetime.timedelta(minutes=30):
                 namelist = [hpl_listm1.name[-1]] + namelist
                 timelist = [hpl_listm1.time[-1]] + timelist
-                print('adding last .hpl of previous day before')
-
-        if  hpl_listp1.time:
+                print('adding last file of previous day before')
+        #print('check 2')
+        if  len(hpl_listp1.time) > 0:
             if hpl_listp1.time[0] - date_chosen  <= datetime.timedelta(days=1, minutes=30):
                 namelist = namelist + [hpl_listp1.name[0]]
                 timelist = timelist + [hpl_listp1.time[0]]
-                print('adding first .hpl of following day after')
+                print('adding first file of following day after')
         
         hpl_list = hpl_files(namelist, timelist)
-
-        read_idx= hpl_files.reader_idx(hpl_list,confDict,chunks=False)
-        nc_name= hpl_files.combine_lvl1(hpl_list,confDict,read_idx,date_chosen)
+        # print('check 3')
+        # read_idx= hpl_files.reader_idx(hpl_list,confDict,chunks=False)
+        nc_name= hpl_files.combine_lvl1(hpl_list, confDict, date_chosen)
         print(nc_name)
         ds_tmp= xr.open_dataset(nc_name)
         print(ds_tmp.info)
@@ -1145,49 +1147,63 @@ class hpl2netCDFClient(object):
                                         }
                         )
                         
-    #    ds_lvl2.time.attrs['units']= 'seconds since 1970-01-01 00:00:00'
-    #    ds_lvl2.time.attrs['units']= 'gregorian'
-        ds_lvl2.attrs['Title']= confDict['NC_TITLE']
-        ds_lvl2.attrs['Institution']= confDict['NC_INSTITUTION']
-        ds_lvl2.attrs['Contact_person']= confDict['NC_CONTACT_PERSON']
-        ds_lvl2.attrs['Source']= "HALO Photonics Doppler lidar (production number: " + confDict['SYSTEM_ID'] + ')'
-        # ds_lvl2.attrs['History']= confDict['NC_HISTORY']
-        ds_lvl2.attrs['Conventions']= confDict['NC_CONVENTIONS']
-        ds_lvl2.attrs['Processing_date']= str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
-        ds_lvl2.attrs['Author']= confDict['NC_AUTHOR']
-        ds_lvl2.attrs['Licence']= confDict['NC_LICENCE'] 
+        ds_lvl2.attrs['title']= confDict['NC_TITLE']
+        ds_lvl2.attrs['institution']= confDict['NC_INSTITUTION']
+        ds_lvl2.attrs['site_location']= confDict['NC_SITE_LOCATION']
+        ds_lvl2.attrs['source']= confDict['NC_SOURCE']
+        ds_lvl2.attrs['instrument_type']= confDict['NC_INSTRUMENT_TYPE']
+        ds_lvl2.attrs['instrument_mode']= confDict['NC_INSTRUMENT_MODE']
+        if 'NC_INSTRUMENT_FIRMWARE_VERSION' in confDict:
+            ds_lvl2.attrs['instrument_firmware_version']= confDict['NC_INSTRUMENT_FIRMWARE_VERSION']
+        else:
+            ds_lvl2.attrs['instrument_firmware_version']= 'N/A'
+            
+        if 'NC_INSTRUMENT_ID' in confDict:
+            ds_lvl2.attrs['instrument_id']= confDict['NC_INSTRUMENT_ID']
+        else:
+            ds_lvl2.attrs['instrument_id']= 'N/A'    
+        ds_lvl2.attrs['instrument_contact']= confDict['NC_INSTRUMENT_CONTACT']
+        # ds_lvl2.attrs['Source']= "HALO Photonics Doppler lidar (production number: " + confDict['SYSTEM_ID'] + ')'
+        # ds_lvl2.attrs['history']= confDict['NC_HISTORY']
+        ds_lvl2.attrs['conventions']= confDict['NC_CONVENTIONS']
+        ds_lvl2.attrs['processing_date']= str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
+        # ds_lvl2.attrs['author']= confDict['NC_AUTHOR']
+        # ds_lvl2.attrs['licence']= confDict['NC_LICENCE']
+        ds_lvl2.attrs['data_policy']= confDict['NC_DATA_POLICY']
 
         # attributes for operational use of netCDFs, see E-Profile wind profiler netCDF version 1.7
-        if 'WIGOS_ID' in confDict:
-            ds_lvl2.attrs['wigos_station_id']= confDict['WIGOS_ID']
+        if 'NC_WIGOS_STATION_ID' in confDict:
+            ds_lvl2.attrs['wigos_station_id']= confDict['NC_WIGOS_STATION_ID']
         else:
             ds_lvl2.attrs['wigos_station_id']= 'N/A'
 
-        if 'WMO_ID' in confDict:
-            ds_lvl2.attrs['wmo_id']= confDict['WMO_ID']
+        if 'NC_WMO_ID' in confDict:
+            ds_lvl2.attrs['wmo_id']= confDict['NC_WMO_ID']
         else:
             ds_lvl2.attrs['wmo_id']= 'N/A'
 
-        if 'PI_ID' in confDict:
-            ds_lvl2.attrs['principal_investigator']= confDict['PI_ID']
+        if 'NC_PI_ID' in confDict:
+            ds_lvl2.attrs['principal_investigator']= confDict['NC_PI_ID']
         else:
             ds_lvl2.attrs['principal_investigator']= 'N/A'
 
-        if 'instrument_serial_number' in confDict:
-            ds_lvl2.attrs['instrument_serial_number']= confDict['SERIAL_NUMBER']
+        if 'NC_INSTRUMENT_SERIAL_NUMBER' in confDict:
+            ds_lvl2.attrs['instrument_serial_number']= confDict['NC_INSTRUMENT_SERIAL_NUMBER']
         else:
             ds_lvl2.attrs['instrument_serial_number']= ' '
 
-        ds_lvl2.attrs['History']= confDict['NC_HISTORY'] + ' version ' + confDict['VERSION'] + ' on ' + str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
+        ds_lvl2.attrs['history']= confDict['NC_HISTORY'] + ' version ' + confDict['VERSION'] + ' on ' + str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
         
         if 'OPERATIONAL' in confDict:
             if bool(int(confDict['OPERATIONAL'])):
-                ds_lvl2.attrs['source']= 'ground based remote sensing'
-                ds_lvl2.attrs['references']= 'Doppler lidar PPI-based retrieval, see VAD'
+                # Blocking statur, only important for operational use
+                ds_lvl2.attrs['references']= confDict['NC_REFERENCES'] #'Doppler lidar PPI-based retrieval, see VAD'
+                ds_lvl2.attrs['data_blocking_status']= confDict['NC_DATA_BLOCKING_STATUS']
                 # set all uncertainties to NaN-Value
                 for item in ['erru', 'errv', 'errw', 'errwspeed', 'errwdir']:
                     ds_lvl2[item] = ds_lvl2[item].where(ds_lvl2[item] == -999., other=-999.)
         #             ds_lvl2[item] = ds_lvl2[item].where(np.isnan(ds_lvl2[item]), other=np.nan)
+        ds_lvl2.attrs['comments']= confDict['NC_COMMENTS']
         
         path= Path(confDict['NC_L2_PATH'] + '/' 
                     + date_chosen.strftime("%Y") + '/'
