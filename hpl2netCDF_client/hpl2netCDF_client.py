@@ -895,13 +895,16 @@ class hpl2netCDFClient(object):
         for dd in confDict:
             if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
                 configuration += dd + '=' + confDict[dd]+'\n'
-
+        if 'BLINDEZONE_GATES' in confDict:
+            NN = int(confDict['BLINDEZONE_GATES'])
+        else:
+            NN = 0
         ds_lvl2= xr.Dataset({ 'config': ([]
                                         , configuration
                                         , {'standard_name' : 'configuration_file'}
                                         )
                             , 'wspeed': (['time', 'height']
-                                        , np.float32(speed)
+                                        , np.float32(speed[:, NN:])
                                         , {'units': 'm s-1'
                                         , 'comments': 'Scalar wind speed (amount of vector)'
                                         , 'standard_name' : 'wind_speed'
@@ -910,7 +913,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             , 'qwind': (['time', 'height']
-                                        , qwind.astype(np.int8)
+                                        , qwind[:, NN:].astype(np.int8)
                                         , {'comments' : str('quality flag 0 or 1 for u, v, w, wspeed, wdir and corresponding errors,'
                                             + '(good quality data = WHERE( R2 > ' + confDict['R2_THRESHOLD'] 
                                             + 'AND CN < ' + confDict['CN_THRESHOLD'] 
@@ -922,7 +925,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             , 'qu': (['time', 'height']
-                                        , qu.astype(np.int8)
+                                        , qu[:, NN:].astype(np.int8)
                                         , {'comments' : 'quality flag 0 or 1 for u and corresponding error'
                                         ,'long_name': 'quality_flag_u'
                                         ,'_FillValue': np.array(-128).astype(np.int8)
@@ -931,7 +934,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             , 'qv': (['time', 'height']
-                                        , qv.astype(np.int8)
+                                        , qv[:, NN:].astype(np.int8)
                                         , {'comments' : 'quality flag 0 or 1 for v and corresponding error'
                                         ,'long_name': 'quality_flag_v'
                                         ,'_FillValue': np.array(-128).astype(np.int8)
@@ -940,7 +943,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             , 'qw': (['time', 'height']
-                                        , qw.astype(np.int8)
+                                        , qw[:, NN:].astype(np.int8)
                                         , {'comments' : 'quality flag 0 or 1 for w and corresponding error'
                                         ,'long_name': 'quality_flag_w'
                                         ,'_FillValue': np.array(-128).astype(np.int8)
@@ -949,7 +952,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )                         
                             ,'errwspeed': (['time', 'height']
-                                        , np.float32(errspeed)
+                                        , np.float32(errspeed[:, NN:])
                                         , {'units': 'm s-1'
                                         , 'standard' : 'wind_speed_uncertainty'
                                         , 'long_name' : 'Wind Speed Uncertainty'
@@ -957,7 +960,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             ,'u': (['time', 'height']
-                                        , np.float32(u)
+                                        , np.float32(u[:, NN:])
                                         , {'units': 'm s-1'
                                         , 'comments': '"Eastward indicates" a vector component which is positive when directed eastward (negative westward). Wind is defined as a two-dimensional (horizontal) air velocity vector, with no vertical component'
                                         , 'standard_name' : 'eastward_wind'
@@ -966,7 +969,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             ,'erru': (['time', 'height']
-                                        , np.float32(erru)
+                                        , np.float32(erru[:, NN:])
                                         , {'units': 'm s-1'
                                         , 'standard_name' : 'eastward_wind_uncertainty'
                                         , 'long_name' : 'Zonal Wind Uncertainty'
@@ -974,7 +977,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             ,'v': (['time', 'height']
-                                        , np.float32(v)
+                                        , np.float32(v[:, NN:])
                                         , {'units': 'm s-1'
                                         , 'comments': '"Northward indicates" a vector component which is positive when directed northward (negative southward). Wind is defined as a two-dimensional (horizontal) air velocity vector, with no vertical component'
                                         , 'standard_name' : 'northward_wind'
@@ -983,7 +986,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             ,'errv': (['time', 'height']
-                                        , np.float32(errv)
+                                        , np.float32(errv[:, NN:])
                                         , {'units': 'm s-1'
                                         , 'standard_name' : 'northward_wind_uncertainty'
                                         , 'long_name' : 'Meridional Wind Uncertainty'
@@ -991,7 +994,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             ,'w': (['time', 'height']
-                                        , np.float32(w)
+                                        , np.float32(w[:, NN:])
                                         , {'units': 'm s-1'
                                         , 'comments': 'Vertical wind component, positive when directed upward (negative downward)'
                                         , 'standard_name' : 'upward_air_velocity'
@@ -1000,7 +1003,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             ,'errw': (['time', 'height']
-                                        , np.float32(errw)
+                                        , np.float32(errw[:, NN:])
                                         , {'units': 'm s-1'
                                         , 'standard_name' : 'upward_air_velocity_uncertainty'
                                         , 'long_name' : 'Upward Air Velocity Uncertainty'
@@ -1008,7 +1011,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             ,'wdir': (['time', 'height']
-                                        , np.float32(wdir)
+                                        , np.float32(wdir[:, NN:])
                                         , {'units': 'degree'
                                         , 'comments': 'Wind direction'
                                         , 'standard_name' : 'wind_from_direction'
@@ -1017,7 +1020,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             ,'errwdir': (['time', 'height']
-                                        , np.float32(errwdir)
+                                        , np.float32(errwdir[:, NN:])
                                         , {'units': 'degree'
                                         , 'standard_name' : 'wind_direction_uncertainty'
                                         , 'long_name' : 'Wind Direction Uncertainty'
@@ -1025,7 +1028,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )
                             ,'r2': (['time', 'height']
-                                        , np.float32(r2)
+                                        , np.float32(r2[:, NN:])
                                         , {'comments' : 'coefficient of determination - provides a measure of how well observed radial velocities are replicated by the model used to determine u,v,w wind components from the measured line of sight radial velocities'
                                             , 'long_name': 'coefficient of determination'
                                             , 'standard_name': 'coefficient_of_determination'
@@ -1034,7 +1037,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )  
                             ,'nvrad': (['time', 'height']
-                                        , np.float32(nvrad)
+                                        , np.float32(nvrad[:, NN:])
                                         , { 'comments' : 'number of (averaged) radial velocities used for wind calculation'
                                             , 'long_name': 'number of radial velocities'
                                             , 'standard_name': 'no_radial_velocities'
@@ -1043,7 +1046,7 @@ class hpl2netCDFClient(object):
                                         }
                                         )  
                             ,'cn': (['time', 'height']
-                                        , np.float32(cn)
+                                        , np.float32(cn[:, NN:])
                                         , {'comments' : 'condition number - provides a measure for the degree of collinearity among the Doppler velocity measurements used for the retrieval of the wind variables (u,v,w,speed,direction).'
                                             
                                            , 'standard_name': 'condition_number'
@@ -1089,7 +1092,7 @@ class hpl2netCDFClient(object):
                                             #             ,((np.arange(0,n_gates) + 1.)
                                             #             * float(confDict['RANGE_GATE_LENGTH'])*np.sin(np.nanmedian(elevation)*np.pi/180))
                                             #             ]).T
-                                            , np.float32(height_bnds)
+                                            , np.float32(height_bnds[NN:, :])
                                             ,{'units': 'm'                                         
                                             }
                                             )
@@ -1115,7 +1118,7 @@ class hpl2netCDFClient(object):
                                             #             ,((np.arange(0,n_gates) + 1.)
                                             #             * float(confDict['RANGE_GATE_LENGTH'])*np.sin(np.nanmedian(elevation)*np.pi/180))
                                             #             ]).T
-                                        , np.float32(width)
+                                        , np.float32(width[NN:])
                                         ,{ 'units': 'm'
                                           ,'comments': 'Calculated from beam elevation and height'
                                           ,'standard_name': 'horizontal_sample_width'
@@ -1126,7 +1129,7 @@ class hpl2netCDFClient(object):
                             , coords= { 'height': (['height']
                                                     # ,((np.arange(0,n_gates)+.5)*int(confDict['RANGE_GATE_LENGTH'])
                                                     # *np.sin(np.nanmedian(elevation)*np.pi/180))
-                                                    , np.float32(height)
+                                                    , np.float32(height[NN:])
                                                     ,{'units': 'm'
                                                     ,'standard_name': 'height'
                                                     ,'comments': 'vertical distance from sensor to centre of range gate'
