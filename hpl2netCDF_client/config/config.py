@@ -19,6 +19,6 @@ class config(object):
             with open(str(file_name)) as reader:
                     # one step approach, fast but hard to understand
                 return {((line.strip('\n')).split('='))[0]: ((line.strip('\n')).split('='))[1].strip('\t')  
-                        for line in reader if not line.startswith('#')}
-                # return {((line.strip('\n')).split('='))[0]: ((line.strip('\n')).split()[1].strip('\t')  
+                        for line in reader if not line.startswith('#') and line != "\n"}
+                # return {((line.strip('\n')).split('='))[0]: ((line.strip('\n')).split()[1].strip('\t')
                 #         for line in reader if not line.startswith('#')}
