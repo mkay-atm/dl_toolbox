@@ -569,8 +569,12 @@ class hpl2netCDFClient(object):
                     + date_chosen.strftime("%Y") + '/'
                     + date_chosen.strftime("%Y%m")
                   )
-        
-        mylist= list(path.glob('**/' + confDict['NC_L1_BASENAME'] + '*' + date_chosen.strftime("%Y%m%d")+ '*.nc'))
+
+        search_pattern = '**/' + confDict['NC_L1_BASENAME'] + '*' + date_chosen.strftime("%Y%m%d")+ '*.nc'
+        mylist= list(path.glob(search_pattern))
+        if not mylist:
+            raise FileNotFoundError(f"Could not find file matching pattern: {search_pattern}")
+
         print(mylist[0])
         if len(mylist)>1:
             print('!!!multiple files found!!!, only first is processed!')
@@ -1250,7 +1254,12 @@ class hpl2netCDFClient(object):
                     + date_chosen.strftime("%Y") + '/'
                     + date_chosen.strftime("%Y%m")
                   )
-        mylist= list(path.glob('**/' + confDict['NC_L2_BASENAME'] + '*' + date_chosen.strftime("%Y%m%d")+ '.nc'))
+
+        search_pattern = '**/' + confDict['NC_L2_BASENAME'] + '*' + date_chosen.strftime("%Y%m%d")+ '.nc'
+        mylist= list(path.glob(search_pattern))
+        if not mylist:
+            raise FileNotFoundError(f"Could not find file matching pattern: {search_pattern}")
+
         print(mylist[0])
         if len(mylist)>1:
             print('!!!multiple files found!!!, only first is processed!')
