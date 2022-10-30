@@ -20,92 +20,58 @@ class hpl_files(object):
     def __init__(self, name, time):
         self.name = name
         self.time = time
-        
+
+    @staticmethod
+    def try_date(text):
+        for fmt in ('%Y%m%dT%H', '%Y%m%dT%H%M%S'):
+            try:
+                return datetime.datetime.strptime(text, fmt)
+            except ValueError:
+                pass
+        raise ValueError('no valid date format found')
+
     @staticmethod
     def make_file_list(date_chosen, confDict, url):
         path = Path(url) / date_chosen.strftime('%Y') / date_chosen.strftime('%Y%m') / date_chosen.strftime('%Y%m%d')
         #confDict= config.gen_confDict()
         ## for halo
         if confDict['SYSTEM'] == 'halo':
-            if (confDict['SCAN_TYPE'] == 'Stare') | (confDict['SCAN_TYPE'] == 'VAD') | (confDict['SCAN_TYPE'] == 'RHI'):
-                scan_type= confDict['SCAN_TYPE']
-            else:
-                scan_type= 'User'
-            mylist= list(path.glob('**/' + scan_type + '*.hpl'))        
-            if confDict['SCAN_TYPE']=='Stare':
-                file_time= [ datetime.datetime.strptime(x.stem,  scan_type
-                                                     + "_"
-                                                     + confDict['SYSTEM_ID']
-                                                     + "_%Y%m%d_%H")
-                        for x in mylist]
-                # sort files according to time stamp
-                file_list = []
-                for ii,idx in enumerate(np.argsort(file_time).astype(int)):
-                    file_list.append(mylist[idx])
-                file_time = [ datetime.datetime.strptime(x.stem
-                                                         , scan_type
-                                                         + "_"
-                                                         + confDict['SYSTEM_ID']
-                                                         + "_%Y%m%d_%H")
-                             for x in file_list]
-            elif (confDict['SCAN_TYPE']=='VAD') | (confDict['SCAN_TYPE']=='RHI'):
-                file_time= [ datetime.datetime.strptime(x.stem,  scan_type
-                                                     + "_"
-                                                     + confDict['SYSTEM_ID']
-                                                     + "_%Y%m%d_%H%M%S")
-                        for x in mylist]
+            
+            scan_type = confDict['SCAN_TYPE']
+            mylist = list(path.glob('**/' + scan_type + '*.hpl'))
+            
+            file_time = [ hpl_files.try_date('T'.join(re.sub('-', '', x.stem
+                                                            ).split('_')[2:])
+                                            ) for x in mylist 
+                        ] 
             # sort files according to time stamp
-                file_list = []
-                for ii,idx in enumerate(np.argsort(file_time).astype(int)):
-                    file_list.append(mylist[idx])
-                file_time = [ datetime.datetime.strptime(x.stem
-                                                         , scan_type
-                                                         + "_"
-                                                         + confDict['SYSTEM_ID']
-                                                         + "_%Y%m%d_%H%M%S")
-                             for x in file_list]
-            else:
-                file_time= [ datetime.datetime.strptime(x.stem
-                                                     , scan_type
-                                                     + x.name[4]
-                                                     + "_"
-                                                     + confDict['SYSTEM_ID']
-                                                     + "_%Y%m%d_%H%M%S")
-                        for x in mylist]
-            # sort files according to time stamp
-                file_list = []
-                for ii,idx in enumerate(np.argsort(file_time).astype(int)):
-                    file_list.append(mylist[idx])
-                file_time = [ datetime.datetime.strptime(x.stem
-                                                         , scan_type
-                                                         + x.name[4]
-                                                         + "_"
-                                                         + confDict['SYSTEM_ID']
-                                                         + "_%Y%m%d_%H%M%S")
-                             for x in file_list]
-            return hpl_files(file_list, file_time)
+            file_list = [ mylist[ii] for ii in np.argsort(file_time).astype('int') ]
+            
+            return hpl_files(file_list, np.sort(file_time))
         ## for windcube                     
         elif  confDict['SYSTEM'] == 'windcube':
-            if (confDict['SCAN_TYPE'] == 'Stare') | (confDict['SCAN_TYPE'] == 'VAD') | (confDict['SCAN_TYPE'] == 'RHI'):
-                scan_type= 'fixed'
-            else:
-                print('unknown scantype!')
-            
+
+            scan_type = confDict['SCAN_TYPE'].lower().split('_')[0]
+            l_rg =  '*' + confDict['RANGE_GATE_LENGTH'] + 'm'
             if abs((date_chosen - datetime.datetime(date_chosen.year, date_chosen.month, date_chosen.day)).total_seconds()) > 0:
-                mylist= list(path.glob('**/' + 'WCS*' + date_chosen.strftime('%Y-%m-%d_%H*') + scan_type + '*.nc'))
+                mylist = list(path.glob('**/*' + date_chosen.strftime('%Y-%m-%d_%H*') 
+                                        + scan_type + l_rg + '*.nc'))
             else:
-                mylist= list(path.glob('**/' + 'WCS*' + scan_type + '*.nc'))
-            
-            file_time = [ datetime.datetime.strptime(  x.stem[0:29]
-                                         , x.stem[0:9] + '_%Y-%m-%d_%H-%M-%S')
-                                         for x in mylist
-                                         ]
+                mylist = list(path.glob('**/*' 
+                                        + scan_type + l_rg + '*.nc'))
+                
+            if 'TP'.lower() in confDict['SCAN_TYPE'].lower():
+                mylist = list(filter(lambda k: 'TP' in k.stem, mylist))
+            else:
+                mylist = list(filter(lambda k: not 'TP' in k.stem, mylist))
+                
+            file_time = [ hpl_files.try_date('T'.join(re.sub('-', '', x.stem
+                                                            ).split('_')[1:3])
+                                            ) 
+                          for x in mylist ] 
             file_list = [mylist[idx] for idx in np.argsort(file_time).astype(int)]
-            file_time = [ datetime.datetime.strptime(  x.stem[0:29]
-                                                     , x.stem[0:9] + '_%Y-%m-%d_%H-%M-%S')
-                         for x in file_list
-                        ]
-            return hpl_files(file_list, file_time)   
+
+            return hpl_files(file_list, np.sort(file_time))
     
     # function used for calculation of range bounds
     @staticmethod
@@ -147,25 +113,46 @@ class hpl_files(object):
             return np.arange(0,len(hpl_list.time))
 
     @staticmethod
-    def combine_lvl1(hpl_list, confDict, date_chosen):
+    def combine_lvl1(hpl_list, confDict, date_chosen, time_chosen=None):
+        print(hpl_list.time)
+        print(time_chosen)
         if confDict['SYSTEM'] == 'halo':
             ds = xr.concat((hpl_files.read_hpl(iit,confDict) for iit in hpl_list.name)
                               ,dim='time'#, combine='nested'#,compat='identical'
                               ,data_vars='minimal'
                               ,coords='minimal')
-        elif confDict['SYSTEM'] == 'windcube':
-        
-            ds = xr.concat((hpl_files.read_wcsradial(iit,confDict) for iit in hpl_list.name)
-                   , dim='time'#, combine='nested'#,compat='identical'
-                   , data_vars='minimal'
-                   , compat='override'
-                   , coords='minimal')
             ds['nqv'].values = ((ds.dv.max() - ds.dv.min()).data/2).astype('f4')
             ds['nqf'].values = (2*ds.nqv.data/float(confDict['SYSTEM_WAVELENGTH'])).astype('f4')
             ds['resv'].values = (2*ds.nqv.data/float(confDict['FFT_POINTS'])).astype('f4')
-        ## delete 'delv' variable, if all entries are NaN.
-        if (ds.delv == -999.).all():
-            ds = ds.drop_vars(['delv'])
+            ## delete 'delv' variable, if all entries are NaN.
+            if (ds.delv == -999.).all():
+                ds = ds.drop_vars(['delv'])
+
+        elif confDict['SYSTEM'] == 'windcube':
+            # if (confDict['SCAN_TYPE'] == 'dbs'):
+            if (('fixed'.lower() in confDict['SCAN_TYPE'].lower()) or ('stare'.lower()) in confDict['SCAN_TYPE'].lower()):
+              print("processing 'Windcube-fixed/-stare' setting!")
+              ds = xr.concat((hpl_files.read_wcsradial(iit,confDict) for iit in hpl_list.name)
+                        , dim='time'#, combine='nested'#,compat='identical'
+                        , data_vars='minimal'
+                        , compat='override'
+                        , coords='minimal')
+              ds['nqv'].values = ((ds.dv.max() - ds.dv.min()).data/2).astype('f4')
+              ds['nqf'].values = (2*ds.nqv.data/float(confDict['SYSTEM_WAVELENGTH'])).astype('f4')
+              ds['resv'].values = (2*ds.nqv.data/float(confDict['FFT_POINTS'])).astype('f4')
+          ## delete 'delv' variable, if all entries are NaN.
+              if (ds.delv == -999.).all():
+                  ds = ds.drop_vars(['delv'])
+            else: 
+                print("processing 'WindCube-dbs/-vad/-pp' setting!")
+                ds = xr.concat((hpl_files.read_wc_type(iit) for iit in hpl_list.name)
+                    ,dim='time'#, combine='nested'#,compat='identical'
+                    ,data_vars='minimal'
+                    ,compat='override'
+                    ,coords='minimal')
+                ds['nqv'] = ((ds.radial_wind_speed.max() - ds.radial_wind_speed.min()).data/2).astype('f4')
+                ds['nqf'] = (2*ds.nqv.data/float(confDict['SYSTEM_WAVELENGTH'])).astype('f4')
+                ds['resv'] = (2*ds.nqv.data/float(confDict['FFT_POINTS'])).astype('f4')                
           # print('dropping "delv" / "spectral width", because all are NaN!')       
           # if os.name == 'nt':
           #  ds = ds._drop_vars(['delv'])
@@ -176,10 +163,19 @@ class hpl_files(object):
           # so in case an Attribute error occurs change line 126 to following
           #ds = ds._drop_vars(['delv'])
         
-        ## choose only timestamp within a daily range
-        start_dt = (pd.to_datetime(date_chosen.date()) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
-        end_dt = (pd.to_datetime(date_chosen  + datetime.timedelta(days= +1)) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
-        ds = ds.isel(time=np.where((ds.time >= start_dt) & (ds.time <= end_dt))[0]) 
+        ## choose only timestamp within range... 
+        if time_chosen is not None:
+            # ...a time window of range AVG_MIN
+            start_dt = (pd.to_datetime(time_chosen - datetime.timedelta(minutes=int(confDict['AVG_MIN']))) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
+            end_dt = (pd.to_datetime(time_chosen) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
+        else: 
+            # ...a daily range
+            start_dt = (pd.to_datetime(date_chosen.date()) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
+            end_dt = (pd.to_datetime(date_chosen  + datetime.timedelta(days= +1)) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
+            
+        print(start_dt, ds.time[0].data)
+        print(end_dt, ds.time[-1].data)
+        ds = ds.isel(time=np.where((ds.time >= start_dt) & (ds.time <= end_dt))[0])  
 
         ds.attrs['title']= confDict['NC_TITLE']
         ds.attrs['institution']= confDict['NC_INSTITUTION']
@@ -235,11 +231,20 @@ class hpl_files(object):
 
         # adjust time variable to double (aka float64)
         ds.time.data.astype(np.float64)
-        path= Path(confDict['NC_L1_PATH'] + '/'
+        
+        if time_chosen is not None:
+            path= Path(confDict['NC_L1_PATH'])
+            path.mkdir(parents=True, exist_ok=True)
+            # use time of start of processing
+            path = path / Path(confDict['NC_L1_BASENAME'] + 'v' + confDict['VERSION'] + '_'  + time_chosen.strftime("%Y%m%d%H%M")+ '.nc')
+        else:
+            path= Path(confDict['NC_L1_PATH'] + '/'
                     + date_chosen.strftime("%Y") + '/'
-                    + date_chosen.strftime("%Y%m"))
-        path.mkdir(parents=True, exist_ok=True)
-        path= path / Path(confDict['NC_L1_BASENAME'] + 'v' + confDict['VERSION'] + '_'  + date_chosen.strftime("%Y%m%d")+ '.nc')
+                    + date_chosen.strftime("%Y%m")
+                    )
+            path.mkdir(parents=True, exist_ok=True)
+            # use daily processing
+            path = path / Path(confDict['NC_L1_BASENAME'] + 'v' + confDict['VERSION'] + '_'  + date_chosen.strftime("%Y%m%d")+ '.nc')
         if 'UTC_OFFSET' in confDict:
             time_offset = np.timedelta64(int(confDict['UTC_OFFSET']), 'h') 
             time_delta = int(confDict['UTC_OFFSET'])
@@ -252,11 +257,30 @@ class hpl_files(object):
         ds.time.attrs['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
         ds.time.encoding['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
         ds.to_netcdf(path, encoding=encoding)
-
 #         ds.to_netcdf(path, unlimited_dims={'time':True}, encoding=encoding)
         ds.close()
         return path
 
+    @staticmethod
+    def read_wc_type(filename):
+      while True:
+              if not filename.exists():
+                  print("Oops, no such file or directory '{}'".format(filename))
+                  break
+              else:
+                  print("reading file '{}'".format(filename))
+                  ds_root = xr.open_dataset(filename)
+                  sweep_list = list(ds_root.sweep_group_name.data)
+                  ds_ind = xr.concat( ( xr.open_dataset( filename
+                                                      , group = sweep_ii
+                                                      , decode_times=False
+                                                      )
+                                      for sweep_ii in sweep_list)
+                                    , dim='time'
+                                    , data_vars='minimal'
+                                    , compat='override'
+                                    , coords='minimal')
+              return ds_ind
     @staticmethod
     def read_hpl(filename, confDict):
         if not filename.exists():

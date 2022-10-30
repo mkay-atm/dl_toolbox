@@ -13,9 +13,21 @@ import datetime
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
 
+def try_parsing_date(text):
+    for fmt in ('%Y-%m-%dT%H:%M', '%Y-%m-%d'):
+        try:
+            return datetime.datetime.strptime(text, fmt)
+        except ValueError:
+            pass
+    raise ValueError('no valid date format found')
+
 def valid_date(s):
     try:
-        return datetime.datetime.strptime(s, "%Y-%m-%d")
+        if s == 'nrt':
+            date = datetime.datetime.now(datetime.timezone.utc)
+        else:
+            date = try_parsing_date(s)
+        return date
     except ValueError:
         msg = "Not a valid date: '{0}'.".format(s)
         raise argparse.ArgumentTypeError(msg)
@@ -30,8 +42,11 @@ def main():
     parser.add_argument('-u', '--url', dest="path2config",
                         type=str, help="path to configuration file",
                             default=default_path)
-    parser.add_argument("-d", "--date", help="The Date - format YYYY-mm-dd", required=True, type=valid_date)
-    parser.add_argument('-c', '--cmd', required=True, choices=['hpl_l1', 'l1_l2','hpl_l1_l2','l1_l2wql','hpl_l1_l2wql','l1wql','l2wql'],
+    parser.add_argument("-d", "--date", nargs='+'
+                        , help="The Date - format YYYY-mm-dd or use nrt for near real time processing using data from the last AVG_MIN minutes prior to calling the client"
+                        , required=True, type=valid_date
+                        )
+    parser.add_argument('-c', '--cmd', required=True, choices=['hpl_l1', 'l1_l2','hpl_l1_l2','l1_l2wql','hpl_l1_l2wql','l1wql','l2wql','hpl_l1_l2nrt','hpl_l2nrt'],
         help=textwrap.dedent(\
         '''Send a command. Supported commands:
         hpl_l1 - combines daily lvl1 files to netCDF
@@ -46,7 +61,7 @@ def main():
     
     args = parser.parse_args(sys.argv[1:])
         
-    proc_dl= hpl2netCDFClient(args.path2config, args.cmd, args.date)
+    proc_dl= hpl2netCDFClient(args.path2config, args.cmd, args.date[0])
     
     proc_dl.display_config_dir()
     proc_dl.display_configDict()
@@ -71,3 +86,10 @@ def main():
         proc_dl.bckql()
     if args.cmd == 'l2wql':
         proc_dl.lvl2ql()
+    if args.cmd == 'hpl_l1_l2nrt':
+        proc_dl.nrtlvl1()
+        proc_dl.nrtlvl2()
+    if args.cmd == 'hpl_l2nrt':
+        proc_dl.nrtlvl1()
+        proc_dl.nrtlvl2()
+        proc_dl.rmlvl1()
