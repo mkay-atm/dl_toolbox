@@ -1968,12 +1968,14 @@ class hpl2netCDFClient(object):
             time = ds.where(ds.elevation<89, drop=True).time
             range_vec =  ds.where(ds.elevation<89, drop=True).range.data[0]
             elevation = ds.where(ds.elevation<89, drop=True).elevation.data
+            vmin, vmax= 1e-9, 1e-6
         else:
             azi = ds.where(ds.zenith>1, drop=True).azi.data
             beta = ds.where(ds.zenith>1, drop=True).beta.data
             time = ds.where(ds.zenith>1, drop=True).time
             range_vec =  ds.where(ds.zenith>1, drop=True).range.data
             elevation = 90 - ds.where(ds.zenith>1, drop=True).zenith.data
+            vmin, vmax= 1e-7, 1e-4
 
         data = np.mod(azi-azi[0], 360)
         index = np.where(abs(np.diff(data)) > 93)[0]
@@ -2027,7 +2029,7 @@ class hpl2netCDFClient(object):
             c_temp = ax.pcolormesh(  X.T, Y.T
                                 , masked_Z
                                 , cmap=cm.gnuplot2
-                                , norm=mcolors.LogNorm(vmin=1e-7, vmax=1e-4)
+                                , norm=mcolors.LogNorm(vmin=vmin, vmax=vmax)
                                 )
             
             cbar = fig.colorbar(c_temp, ax=ax, extend='both', pad=0.01)
