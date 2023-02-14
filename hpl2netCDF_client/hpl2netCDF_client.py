@@ -1962,7 +1962,7 @@ class hpl2netCDFClient(object):
 
         ds = import_lvl1(date_chosen, confDict)
 
-        if (confDict['SYSTEM'].lower() == 'windcube') & ('fixed' not in confDict['SCAN_TYPE'].lower()):
+        if (confDict['SYSTEM'].lower() == 'windcube'):
             azi = ds.where(ds.elevation<89, drop=True).azimuth.data
             beta = ds.where(ds.elevation<89, drop=True).relative_beta.data
             time = ds.where(ds.elevation<89, drop=True).time
