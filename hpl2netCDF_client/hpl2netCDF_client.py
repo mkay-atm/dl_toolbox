@@ -1984,7 +1984,7 @@ class hpl2netCDFClient(object):
         start = 0
         for ii,ind in enumerate(index):
             if ind == index[-1]:
-                cycles.update( { ii: {'indices': np.arange(start, len(azi)), 'values': ds.azi[start:len(azi)]} })
+                cycles.update( { ii: {'indices': np.arange(start, len(azi)), 'values': azi[start:len(azi)]} })
                 # print('finished cycling!')
             else:
                 cycles.update( { ii: {'indices': np.arange(start, ind+1), 'values': azi[start:ind+1]} })
