@@ -1961,21 +1961,30 @@ class hpl2netCDFClient(object):
             time_delta = 0
 
         ds = import_lvl1(date_chosen, confDict)
-
-        if (confDict['SYSTEM'].lower() == 'windcube'):
-            azi = ds.where(ds.elevation<89, drop=True).azimuth.data
-            beta = ds.where(ds.elevation<89, drop=True).relative_beta.data
-            time = ds.where(ds.elevation<89, drop=True).time
-            range_vec =  ds.where(ds.elevation<89, drop=True).range.data[0]
-            elevation = ds.where(ds.elevation<89, drop=True).elevation.data
-            vmin, vmax= 1e-9, 1e-6
-        else:
+        
+        if confDict['SYSTEM'].lower() == 'halo':
+            vmin, vmax= 1e-7, 1e-4
             azi = ds.where(ds.zenith>1, drop=True).azi.data
             beta = ds.where(ds.zenith>1, drop=True).beta.data
             time = ds.where(ds.zenith>1, drop=True).time
             range_vec =  ds.where(ds.zenith>1, drop=True).range.data
             elevation = 90 - ds.where(ds.zenith>1, drop=True).zenith.data
-            vmin, vmax= 1e-7, 1e-4
+            
+        if confDict['SYSTEM'].lower() == 'windcube':
+            vmin, vmax= 1e-9, 1e-6
+            if ('fixed'.lower() in confDict['SCAN_TYPE'].lower()) or ('stare'.lower() in confDict['SCAN_TYPE'].lower()):
+                azi = ds.where(ds.zenith>1, drop=True).azi.data
+                beta = ds.where(ds.zenith>1, drop=True).beta.data
+                time = ds.where(ds.zenith>1, drop=True).time
+                range_vec =  ds.where(ds.zenith>1, drop=True).range.data
+                elevation = 90 - ds.where(ds.zenith>1, drop=True).zenith.data     
+            else:
+                azi = ds.where(ds.elevation<89, drop=True).azimuth.data
+                beta = ds.where(ds.elevation<89, drop=True).relative_beta.data
+                time = ds.where(ds.elevation<89, drop=True).time
+                range_vec =  ds.where(ds.elevation<89, drop=True).range.data[0]
+                elevation = ds.where(ds.elevation<89, drop=True).elevation.data
+                
 
         data = np.mod(azi-azi[0], 360)
         index = np.where(abs(np.diff(data)) > 93)[0]
