@@ -1899,7 +1899,8 @@ class hpl2netCDFClient(object):
             masked_WS = np.ma.masked_where(mask,WS)
 
             # define adjustable and discretized colormap
-            wsmax= max(np.round(masked_WS.max(),-1), 10)
+            # wsmax = max(np.round(masked_WS.max(),-1), 10)
+            wsmax = max(np.round(np.nanpercentile(masked_WS.filled(np.nan).flatten(), 95), -1) + 10, 10)
             palette = plt.get_cmap(cmap_discretize(cm.jet,int(wsmax)))
             palette.set_under('white', 1.0)
             # define x-axis values
