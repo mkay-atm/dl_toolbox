@@ -1751,8 +1751,8 @@ class hpl2netCDFClient(object):
         if confDict['SYSTEM'] == 'windcube':
             
             if (len(ds_tmp.range.dims) > 1):
-                if ('dbs' in confDict['SCAN_TYPE'].lower()) or ('vad' in confDict['SCAN_TYPE'].lower()):
-                    print("processing 'Windcube-dbs/-vad' setting!")
+                if ('dbs' in confDict['SCAN_TYPE'].lower()) or ('vad' in confDict['SCAN_TYPE'].lower()) or ('ppi' in confDict['SCAN_TYPE'].lower()):
+                    print("processing 'Windcube-dbs/-vad' setting! (using vad if ppi is intented)")
                     ds_lvl2 = hpl2netCDFClient.lvl2wcdbs(ds_tmp, date_chosen, confDict)
             if ('rhi' in confDict['SCAN_TYPE'].lower()):
                     print("settings for RHI not yet implemented!")
