@@ -78,7 +78,8 @@ class hpl_files(object):
     def range_calc(rg_vec, confDict):
         '''Calculate range bounds, also accounting for overlapping gates. If your hpl-files contain overlapping gates please add the "OVERLAPPING_GATES" argument to the configuration file.'''
         if 'OVERLAPPING_GATES' in confDict:  
-            r = lambda x,idx: (x + idx) *  float(confDict['RANGE_GATE_LENGTH'])/(1,float(confDict['NUMBER_OF_GATE_POINTS']))[int(confDict['OVERLAPPING_GATES'])]
+            # r = lambda x,idx: (x + idx) *  float(confDict['RANGE_GATE_LENGTH'])/(1,float(confDict['NUMBER_OF_GATE_POINTS']))[int(confDict['OVERLAPPING_GATES'])]
+            r = lambda x,idx: (x/(1,float(confDict['NUMBER_OF_GATE_POINTS']))[int(confDict['OVERLAPPING_GATES'])] + idx) * float(confDict['RANGE_GATE_LENGTH'])
         else:
             r = lambda x,idx: (x + idx) *  float(confDict['RANGE_GATE_LENGTH'])
 
@@ -132,7 +133,8 @@ class hpl_files(object):
             # if (confDict['SCAN_TYPE'] == 'dbs'):
             if (('fixed'.lower() in confDict['SCAN_TYPE'].lower()) or ('stare'.lower()) in confDict['SCAN_TYPE'].lower()):
               print("processing 'Windcube-fixed/-stare' setting!")
-              ds = xr.concat((hpl_files.read_wcsradial(iit,confDict) for iit in hpl_list.name)
+              ds = xr.concat((hpl_files.read_wcsradial(iit,confDict) for iit in hpl_list.name 
+                                                                     if hpl_files.read_wcsradial(iit,confDict) is not False)
                         , dim='time'#, combine='nested'#,compat='identical'
                         , data_vars='minimal'
                         , compat='override'
@@ -145,7 +147,8 @@ class hpl_files(object):
                   ds = ds.drop_vars(['delv'])
             else: 
                 print("processing 'WindCube-dbs/-vad/-pp' setting!")
-                ds = xr.concat((hpl_files.read_wc_type(iit) for iit in hpl_list.name)
+                ds = xr.concat((hpl_files.read_wc_type(iit) for iit in hpl_list.name
+                                                            if hpl_files.read_wc_type(iit) is not False)
                     ,dim='time'#, combine='nested'#,compat='identical'
                     ,data_vars='minimal'
                     ,compat='override'
@@ -269,7 +272,11 @@ class hpl_files(object):
                   break
               else:
                   print("reading file '{}'".format(filename))
-                  ds_root = xr.open_dataset(filename)
+                  try:
+                    ds_root = xr.open_dataset(filename)
+                  except OSError:
+                    print("corrupted netCDF: '{}'".format(filename))
+                    return False
                   sweep_list = list(ds_root.sweep_group_name.data)
                   ds_ind = xr.concat( ( xr.open_dataset( filename
                                                       , group = sweep_ii
@@ -665,7 +672,16 @@ class hpl_files(object):
             # when relying on xarray package alone
             
             # read root attributes
-            ds_root = xr.open_dataset(filename)
+            try:
+                ds_root = xr.open_dataset(filename)
+            except OSError:
+                print("corrupted netCDF: '{}'".format(filename))
+                return False
+                
+            if 'time_reference' in list(ds_root.keys()):
+                time_reference = ds_root.time_reference.data
+            else:
+                time_reference = None
             sweep_list = list(ds_root.sweep_group_name.data)
             # print("combining sweeps {}".format(sweep_list))
             # read radial data in sweep group
@@ -678,6 +694,8 @@ class hpl_files(object):
                                 , data_vars='minimal'
                                 , compat='override'
                                 , coords='minimal')
+            if time_reference is None:
+                time_reference = ds_tmp.time_reference.data
             
             range_mid = hpl_files.range_calc(ds_tmp.gate_index.data.astype(int), confDict)
             dr = (np.float32(confDict['PULS_DURATION']) * 299792458/4).astype('f4')
@@ -900,7 +918,7 @@ class hpl_files(object):
                               }
                            , coords= {  'time': ( ['time']
                                                  , ds_tmp.time.data
-                                                 ,{ 'units': "seconds since {}".format(pd.to_datetime(ds_tmp.time_reference.data).strftime('%Y-%m-%d %H:%M:%S')) 
+                                                 ,{ 'units': "seconds since {}".format(pd.to_datetime(time_reference).strftime('%Y-%m-%d %H:%M:%S')) 
                                                    ,'standard_name': 'time'
                                                    ,'long_name': 'Time'
                                                    ,'calendar':'gregorian'
