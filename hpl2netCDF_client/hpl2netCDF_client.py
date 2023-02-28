@@ -626,7 +626,7 @@ def ql_helper(ds, confDict):
         Z = beta
         mask= (np.isnan(Z)) | (Z==-999.)
         masked_Z = np.ma.masked_where(mask, Z)
-#         id_condi = np.round(pbdist_alt(azi[:-1].round() % 360, azi[1:].round() % 360, 180)) < 0
+        # id_condi = np.round(pbdist_alt(azi[:-1].round() % 360, azi[1:].round() % 360, 180)) < 0
         id_condi = np.round(azi[:-1].round() % 360 - azi[1:].round() % 360) >= 180
         idx = np.where(np.hstack([True, id_condi]))[0]
         beta_max = np.full((sum(id_condi), beta.shape[1]), np.nan)
@@ -1200,10 +1200,13 @@ class hpl2netCDFClient(object):
         dv = ds_comb.radial_wind_speed.data
         delv = ds_comb.doppler_spectrum_width.data
         beta = ds_comb.relative_beta.data
-        height = ds_comb.measurement_height.data[0]
+        if 'measurement_height' in list(ds_comb.keys()):
+            height = ds_comb.measurement_height.data[0]
+        else:
+            height = (np.sin(ds_comb.elevation*np.pi/180)*ds_comb.range).data[0]
+            
         width = (np.cos(ds_comb.elevation*np.pi/180)*ds_comb.range*2).data
         width = width[elevation<89][0]
-        
         height_bnds = np.vstack([height-lrg/2, height-lrg/2]).T
         
         if 'UTC_OFFSET' in confDict:
@@ -1749,16 +1752,16 @@ class hpl2netCDFClient(object):
         
         ds_tmp = import_lvl1(date_chosen, confDict)
         
-        if confDict['SYSTEM'] == 'windcube':
+        if confDict['SYSTEM'].lower() == 'windcube':
             
-            if (len(ds_tmp.range.dims) > 1):
-                if ('dbs' in confDict['SCAN_TYPE'].lower()) or ('vad' in confDict['SCAN_TYPE'].lower()) or ('ppi' in confDict['SCAN_TYPE'].lower()):
-                    print("processing 'Windcube-dbs/-vad' setting! (using vad if ppi is intented)")
-                    ds_lvl2 = hpl2netCDFClient.lvl2wcdbs(ds_tmp, date_chosen, confDict)
+            #if (len(ds_tmp.range.dims) > 1):
+            if ('dbs' in confDict['SCAN_TYPE'].lower()) or ('vad' in confDict['SCAN_TYPE'].lower()) or ('ppi' in confDict['SCAN_TYPE'].lower()):
+                print("processing 'Windcube-dbs/-vad' setting!")
+                ds_lvl2 = hpl2netCDFClient.lvl2wcdbs(ds_tmp, date_chosen, confDict)
             if ('rhi' in confDict['SCAN_TYPE'].lower()):
-                    print("settings for RHI not yet implemented!")
-                    # create place holder dataset
-                    ds_lvl2 = xr.Dataset()
+                print("settings for RHI not yet implemented!")
+                # create place holder dataset
+                ds_lvl2 = xr.Dataset()
             if ('fixed' in confDict['SCAN_TYPE'].lower()):
                 if ('vad' in confDict['SCAN_TYPE'].lower()):
                     print("processing 'Windcube-vad-fixed' setting!...for old system version!!")
@@ -1769,7 +1772,7 @@ class hpl2netCDFClient(object):
                     # create place holder dataset
                     ds_lvl2 = xr.Dataset()
                 
-        if confDict['SYSTEM'] == 'halo':
+        if confDict['SYSTEM'].lower() == 'halo':
             if (len(ds_tmp.range.dims) > 1) & (confDict['SCAN_TYPE'] == 'DBS'):
                 print("processing 'Streamline-dbs' setting!")
                 ds_lvl2 = hpl2netCDFClient.lvl2vad_standard(ds_tmp, date_chosen, confDict)
