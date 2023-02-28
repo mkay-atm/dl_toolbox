@@ -563,7 +563,11 @@ def ql_helper(ds, confDict):
             
     if confDict['SYSTEM'].lower() == 'windcube':
         vmin, vmax= 1e-8, 1e-6
-        
+        if 'relative_beta' not in list(ds.keys()):
+            print('no backscatter data in file, plot CNR instead')
+            ds['relative_beta'] = ds.cnr
+            vmin, vmax= -40, 10
+
     # use equal names        
     try:
         ds.elevation
@@ -1199,7 +1203,11 @@ class hpl2netCDFClient(object):
         cnr = 10**(ds_comb.cnr.data/10)
         dv = ds_comb.radial_wind_speed.data
         delv = ds_comb.doppler_spectrum_width.data
-        beta = ds_comb.relative_beta.data
+        if 'relative_beta' in list(ds_comb.keys()):
+            beta = ds_comb.relative_beta.data
+        else:
+            print('no backscatter data in file, set all beta to 1')
+            beta = np.ones(dv.shape)
         if 'measurement_height' in list(ds_comb.keys()):
             height = ds_comb.measurement_height.data[0]
         else:
@@ -2059,7 +2067,7 @@ class hpl2netCDFClient(object):
             time_delta = 0
 
         ds = import_lvl1(date_chosen, confDict)
-        
+        condi = 'relative_beta' not in list(ds.keys())
         beta_max, time_mean, range_vec, elevation, vmin, vmax = ql_helper(ds, confDict)
 
         fig, axes= plt.subplots(1,1,figsize=(18, 12))
@@ -2080,16 +2088,26 @@ class hpl2netCDFClient(object):
             print('no quick look  is saved')
         else:
             mask= np.isnan(Z)
-            masked_Z = np.ma.masked_where(mask, Z)           
-
-            c_temp = ax.pcolormesh(  X.T, Y.T
-                                , masked_Z
-                                , cmap=cm.gnuplot2
-                                , norm=mcolors.LogNorm(vmin=vmin, vmax=vmax)
-                                )
+            masked_Z = np.ma.masked_where(mask, Z)
+            # print(list(ds.keys()))
+            if condi:
+                print(vmin, vmax)
+                str_bck = r'$\rm{CNR}\;/\;\rm{dB}$'
+                c_temp = ax.pcolormesh(  X.T, Y.T
+                                    , masked_Z
+                                    , cmap=cm.gnuplot2
+                                    , vmin=vmin, vmax=vmax
+                                    )
+            else:
+                str_bck = r'$\rm{attenuated\;backscatter}\;/\;\rm{m}^{-1}\,\rm{sr}^{-1}$'
+                c_temp = ax.pcolormesh(  X.T, Y.T
+                                    , masked_Z
+                                    , cmap=cm.gnuplot2
+                                    , norm=mcolors.LogNorm(vmin=vmin, vmax=vmax)
+                                    )
             
             cbar = fig.colorbar(c_temp, ax=ax, extend='both', pad=0.01)
-            cbar.set_label(r'$\rm{attenuated\;backscatter}\;/\;\rm{m}^{-1}\,\rm{sr}^{-1}$', rotation=270,
+            cbar.set_label(str_bck, rotation=270,
                         fontsize=22, labelpad=37)
             # cbar.ax.tick_params(labelsize=27, length = 0, width = 2, dir17ection= 'in')
             cbar.ax.tick_params(which='major', direction= 'out', length = 14, width = 2, labelsize=22)
