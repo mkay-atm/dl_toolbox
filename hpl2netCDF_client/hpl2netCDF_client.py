@@ -563,7 +563,7 @@ def ql_helper(ds, confDict):
             
     if confDict['SYSTEM'].lower() == 'windcube':
         vmin, vmax= 1e-8, 1e-6
-        if 'relative_beta' not in list(ds.keys()):
+        if ('relative_beta' not in list(ds.keys())) and ('beta' not in list(ds.keys())):
             print('no backscatter data in file, plot CNR instead')
             ds['relative_beta'] = ds.cnr
             vmin, vmax= -40, 10
@@ -2067,7 +2067,7 @@ class hpl2netCDFClient(object):
             time_delta = 0
 
         ds = import_lvl1(date_chosen, confDict)
-        condi = 'relative_beta' not in list(ds.keys())
+        condi = ('relative_beta' not in list(ds.keys())) and ('beta' not in list(ds.keys()))
         beta_max, time_mean, range_vec, elevation, vmin, vmax = ql_helper(ds, confDict)
 
         fig, axes= plt.subplots(1,1,figsize=(18, 12))
