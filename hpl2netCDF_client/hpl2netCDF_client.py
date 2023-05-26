@@ -1763,13 +1763,14 @@ class hpl2netCDFClient(object):
         if confDict['SYSTEM'].lower() == 'windcube':
             
             #if (len(ds_tmp.range.dims) > 1):
-            if ('dbs' in confDict['SCAN_TYPE'].lower()) or ('vad' in confDict['SCAN_TYPE'].lower()) or ('ppi' in confDict['SCAN_TYPE'].lower()):
-                print("processing 'Windcube-dbs/-vad' setting!")
-                ds_lvl2 = hpl2netCDFClient.lvl2wcdbs(ds_tmp, date_chosen, confDict)
-            if ('rhi' in confDict['SCAN_TYPE'].lower()):
-                print("settings for RHI not yet implemented!")
-                # create place holder dataset
-                ds_lvl2 = xr.Dataset()
+            if 'fixed' not in confDict['SCAN_TYPE'].lower():
+                if ('dbs' in confDict['SCAN_TYPE'].lower()) or ('vad' in confDict['SCAN_TYPE'].lower()) or ('ppi' in confDict['SCAN_TYPE'].lower()):
+                    print("processing 'Windcube-dbs/-vad' setting!")
+                    ds_lvl2 = hpl2netCDFClient.lvl2wcdbs(ds_tmp, date_chosen, confDict)
+                if ('rhi' in confDict['SCAN_TYPE'].lower()):
+                    print("settings for RHI not yet implemented!")
+                    # create place holder dataset
+                    ds_lvl2 = xr.Dataset()
             if ('fixed' in confDict['SCAN_TYPE'].lower()):
                 if ('vad' in confDict['SCAN_TYPE'].lower()):
                     print("processing 'Windcube-vad-fixed' setting!...for old system version!!")
