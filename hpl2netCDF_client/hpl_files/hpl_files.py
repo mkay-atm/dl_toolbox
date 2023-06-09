@@ -407,7 +407,7 @@ class hpl_files(object):
         SNR_tmp[abs(SNR_tmp)<=np.finfo(np.float32).eps] = np.finfo(np.float32).eps
         ## calculate SNR in dB
         # SNR_dB= 10*np.log10(np.ma.masked_values(SNR_tmp, np.nan)).filled(np.nan)
-        SNR_dB= 10*np.log10(SNR_tmp.astype(np.complex)).real
+        SNR_dB= 10*np.log10(SNR_tmp.astype(complex)).real
         ## calculate measurement uncertainty, with consensus indices
         sigma_tmp= proc.hpl2netCDF_client.calc_sigma_single(SNR_dB
                                         ,int(mheader['Gate length (pts)'])
