@@ -327,7 +327,7 @@ def consensus(Vr,SNR,BETA,CNS_range,CNS_percentage,SNR_threshold,B):
     if SNR_threshold == 0:
         condi_snr = condi_0
     else:
-        condi_snr = (10*np.log10(SNR.astype(np.complex)).real > SNR_threshold) & (BETA > 0)
+        condi_snr = (10*np.log10(SNR.astype(complex)).real > SNR_threshold) & (BETA > 0)
 
     Vr_m = np.ma.masked_where( ~condi_snr, Vr)
     condi_vr = (abs(Vr_m.filled(-999.)) <= B)
@@ -852,7 +852,7 @@ class hpl2netCDFClient(object):
                 # plausible winds can only be calculated, when the at least three LOS measurements are present
                 UVW[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
-                UVWunc[kk, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(np.complex)).real))
+                UVWunc[kk, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(complex)).real))
                 # plausible winds can only be calculated, when the at least three LOS measurements are present
                 UVWunc[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
@@ -1376,7 +1376,7 @@ class hpl2netCDFClient(object):
                 # plausible winds can only be calculated, when the at least three LOS measurements are present
                 UVW[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
-                UVWunc[kk, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(np.complex)).real))
+                UVWunc[kk, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(complex)).real))
                 # plausible winds can only be calculated, when the at least three LOS measurements are present
                 UVWunc[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
@@ -2463,7 +2463,7 @@ class hpl2netCDFClient(object):
                 # plausible winds can only be calculated, when the at least three LOS measurements are present
                 UVW[0, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
-                UVWunc[0, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(np.complex)).real))
+                UVWunc[0, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(complex)).real))
                 # plausible winds can only be calculated, when the at least three LOS measurements are present
                 UVWunc[0, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
