@@ -259,8 +259,15 @@ class hpl_files(object):
         encoding = {var: comp for var in np.hstack([ds.data_vars,ds.coords])}
         ds.time.attrs['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
         ds.time.encoding['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
-        ds.to_netcdf(path, encoding=encoding)
+        try:
+            ds.to_netcdf(path, encoding=encoding)
 #         ds.to_netcdf(path, unlimited_dims={'time':True}, encoding=encoding)
+        except RuntimeError:
+            print('CRITICAL - writing NetCDF file failed, re-trying without timestamps')
+            for ts in ['timestamp', 'timestamp_local']:
+                ds = ds.drop_vars(ts)
+                encoding.pop(ts)
+            ds.to_netcdf(path, encoding=encoding)
         ds.close()
         return path
 
