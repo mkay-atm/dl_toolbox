@@ -4,10 +4,13 @@ from hpl2netCDF_client.hpl2netCDF_client import hpl2netCDFClient
 
 
 if __name__ == '__main__':
-    cmd = 'hpl_l1_l2'
+
+    # Payerne VAD
+    cmd = 'hpl_l1_l2'  # works: 'hpl_l1_l2'; does not work: 'hpl_l1_l2nrt', 'hpl_l2nrt'
     conf = '/home/ruf/Desktop/dl_toolbox_test_data/config_ruf/wc_MeteoSwiss_Payerne_VAD_TP.conf'
     date = datetime.datetime.strptime('2023-02-09', '%Y-%m-%d')
 
+    # Code:
     proc_dl = hpl2netCDFClient(conf, cmd, date)
 
     proc_dl.display_config_dir()
