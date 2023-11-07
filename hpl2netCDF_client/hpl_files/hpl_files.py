@@ -117,124 +117,8 @@ class hpl_files(object):
     def combine_lvl1(hpl_list, confDict, date_chosen, time_chosen=None):
         print(hpl_list.time)
         print(time_chosen)
-        if confDict['SYSTEM'] == 'halo':
-            ds = xr.concat((hpl_files.read_hpl(iit,confDict) for iit in hpl_list.name)
-                              ,dim='time'#, combine='nested'#,compat='identical'
-                              ,data_vars='minimal'
-                              ,coords='minimal')
-            ds['nqv'].values = ((ds.dv.max() - ds.dv.min()).data/2).astype('f4')
-            ds['nqf'].values = (2*ds.nqv.data/float(confDict['SYSTEM_WAVELENGTH'])).astype('f4')
-            ds['resv'].values = (2*ds.nqv.data/float(confDict['FFT_POINTS'])).astype('f4')
-            ## delete 'delv' variable, if all entries are NaN.
-            if (ds.delv == -999.).all():
-                ds = ds.drop_vars(['delv'])
+        ds = hpl_files.combine_lvl1_to_ds(hpl_list, confDict, date_chosen, time_chosen)
 
-        elif confDict['SYSTEM'] == 'windcube':
-            # if (confDict['SCAN_TYPE'] == 'dbs'):
-            if (('fixed'.lower() in confDict['SCAN_TYPE'].lower()) or ('stare'.lower()) in confDict['SCAN_TYPE'].lower()):
-              print("processing 'Windcube-fixed/-stare' setting!")
-              ds = xr.concat((hpl_files.read_wcsradial(iit,confDict) for iit in hpl_list.name 
-                                                                     if hpl_files.read_wcsradial(iit,confDict) is not False)
-                        , dim='time'#, combine='nested'#,compat='identical'
-                        , data_vars='minimal'
-                        , compat='override'
-                        , coords='minimal')
-              ds['nqv'].values = ((ds.dv.max() - ds.dv.min()).data/2).astype('f4')
-              ds['nqf'].values = (2*ds.nqv.data/float(confDict['SYSTEM_WAVELENGTH'])).astype('f4')
-              ds['resv'].values = (2*ds.nqv.data/float(confDict['FFT_POINTS'])).astype('f4')
-          ## delete 'delv' variable, if all entries are NaN.
-              if (ds.delv == -999.).all():
-                  ds = ds.drop_vars(['delv'])
-            else: 
-                print("processing 'WindCube-dbs/-vad/-pp' setting!")
-                ds = xr.concat((hpl_files.read_wc_type(iit) for iit in hpl_list.name
-                                                            if hpl_files.read_wc_type(iit) is not False)
-                    ,dim='time'#, combine='nested'#,compat='identical'
-                    ,data_vars='minimal'
-                    ,compat='override'
-                    ,coords='minimal')
-                ds['nqv'] = ((ds.radial_wind_speed.max() - ds.radial_wind_speed.min()).data/2).astype('f4')
-                ds['nqf'] = (2*ds.nqv.data/float(confDict['SYSTEM_WAVELENGTH'])).astype('f4')
-                ds['resv'] = (2*ds.nqv.data/float(confDict['FFT_POINTS'])).astype('f4')                
-          # print('dropping "delv" / "spectral width", because all are NaN!')       
-          # if os.name == 'nt':
-          #  ds = ds._drop_vars(['delv'])
-          #else:
-          #  ds = ds.drop_vars(['delv'])
-          ##!!!NOTE!!!##
-          # There was an issue under windows, possible due to a version problem,
-          # so in case an Attribute error occurs change line 126 to following
-          #ds = ds._drop_vars(['delv'])
-        
-        ## choose only timestamp within range... 
-        if time_chosen is not None:
-            # ...a time window of range AVG_MIN
-            start_dt = (pd.to_datetime(time_chosen - datetime.timedelta(minutes=int(confDict['AVG_MIN']))) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
-            end_dt = (pd.to_datetime(time_chosen) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
-        else: 
-            # ...a daily range
-            start_dt = (pd.to_datetime(date_chosen.date()) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
-            end_dt = (pd.to_datetime(date_chosen  + datetime.timedelta(days= +1)) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
-            
-        print(start_dt, ds.time[0].data)
-        print(end_dt, ds.time[-1].data)
-        ds = ds.isel(time=np.where((ds.time >= start_dt) & (ds.time <= end_dt))[0])  
-
-        ds.attrs['title']= confDict['NC_TITLE']
-        ds.attrs['institution']= confDict['NC_INSTITUTION']
-        ds.attrs['site_location']= confDict['NC_SITE_LOCATION']
-        ds.attrs['source']= confDict['NC_SOURCE']
-        ds.attrs['instrument_type']= confDict['NC_INSTRUMENT_TYPE']
-        ds.attrs['instrument_mode']= confDict['NC_INSTRUMENT_MODE']
-        if 'NC_INSTRUMENT_FIRMWARE_VERSION' in confDict:
-            ds.attrs['instrument_firmware_version']= confDict['NC_INSTRUMENT_FIRMWARE_VERSION']
-        else:
-            ds.attrs['instrument_firmware_version']= 'N/A'
-        ds.attrs['instrument_contact']= confDict['NC_INSTRUMENT_CONTACT']
-        
-        if 'NC_INSTRUMENT_ID' in confDict:
-            ds.attrs['instrument_id']= confDict['NC_INSTRUMENT_ID']
-        else:
-            ds.attrs['instrument_id']= 'N/A' 
-        # ds.attrs['Source']= "HALO Photonics Doppler lidar (system_id: " + confDict['SYSTEM_ID']
-        ds.attrs['conventions']= confDict['NC_CONVENTIONS']
-        ds.attrs['processing_date']= str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
-        # ds.attrs['Author']= confDict['NC_AUTHOR']
-        ds.attrs['instrument_contact']= confDict['NC_INSTRUMENT_CONTACT']
-        ds.attrs['data_policy']= confDict['NC_DATA_POLICY'] 
-
-        # attributes for operational use of netCDFs, see E-Profile wind profiler netCDF version 1.7
-        if 'NC_WIGOS_STATION_ID' in confDict:
-            ds.attrs['wigos_station_id']= confDict['NC_WIGOS_STATION_ID']
-        else:
-            ds.attrs['wigos_station_id']= 'N/A'
-
-        if 'NC_WMO_ID' in confDict:
-            ds.attrs['wmo_id']= confDict['NC_WMO_ID']
-        else:
-            ds.attrs['wmo_id']= 'N/A'
-
-        if 'NC_PI_ID' in confDict:
-            ds.attrs['principal_investigator']= confDict['NC_PI_ID']
-        else:
-            ds.attrs['principal_investigator']= 'N/A'
-
-        if 'NC_INSTRUMENT_SERIAL_NUMBER' in confDict:
-            ds.attrs['instrument_serial_number']= confDict['NC_INSTRUMENT_SERIAL_NUMBER']
-        else:
-            ds.attrs['instrument_serial_number']= ' '
-
-        ds.attrs['history']= confDict['NC_HISTORY'] + ' version ' + confDict['VERSION'] + ' on ' + str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
-        ds.attrs['comments']= confDict['NC_COMMENTS']
-        ## add configuration as attribute used to create the file
-        configuration = """"""
-        for dd in confDict:
-            configuration += dd + '=' + confDict[dd]+'\n'
-        ds.attrs['File_Configuration']= configuration
-
-        # adjust time variable to double (aka float64)
-        ds.time.data.astype(np.float64)
-        
         if time_chosen is not None:
             path= Path(confDict['NC_L1_PATH'])
             path.mkdir(parents=True, exist_ok=True)
@@ -248,17 +132,11 @@ class hpl_files(object):
             path.mkdir(parents=True, exist_ok=True)
             # use daily processing
             path = path / Path(confDict['NC_L1_BASENAME'] + 'v' + confDict['VERSION'] + '_'  + date_chosen.strftime("%Y%m%d")+ '.nc')
-        if 'UTC_OFFSET' in confDict:
-            time_offset = np.timedelta64(int(confDict['UTC_OFFSET']), 'h') 
-            time_delta = int(confDict['UTC_OFFSET'])
-        else:
-            time_offset = np.timedelta64(0, 'h') 
-            time_delta = 0
+
         # compress variables
         comp = dict(zlib=True, complevel=9)
         encoding = {var: comp for var in np.hstack([ds.data_vars,ds.coords])}
-        ds.time.attrs['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
-        ds.time.encoding['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
+
         try:
             ds.to_netcdf(path, encoding=encoding)
 #         ds.to_netcdf(path, unlimited_dims={'time':True}, encoding=encoding)
@@ -270,6 +148,136 @@ class hpl_files(object):
             ds.to_netcdf(path, encoding=encoding)
         ds.close()
         return path
+
+    @staticmethod
+    def combine_lvl1_to_ds(hpl_list, confDict, date_chosen, time_chosen=None):
+        if confDict['SYSTEM'] == 'halo':
+            ds = xr.concat((hpl_files.read_hpl(iit, confDict) for iit in hpl_list.name)
+                           , dim='time'  # , combine='nested'#,compat='identical'
+                           , data_vars='minimal'
+                           , coords='minimal')
+            ds['nqv'].values = ((ds.dv.max() - ds.dv.min()).data / 2).astype('f4')
+            ds['nqf'].values = (2 * ds.nqv.data / float(confDict['SYSTEM_WAVELENGTH'])).astype('f4')
+            ds['resv'].values = (2 * ds.nqv.data / float(confDict['FFT_POINTS'])).astype('f4')
+            ## delete 'delv' variable, if all entries are NaN.
+            if (ds.delv == -999.).all():
+                ds = ds.drop_vars(['delv'])
+
+        elif confDict['SYSTEM'] == 'windcube':
+            # if (confDict['SCAN_TYPE'] == 'dbs'):
+            if (('fixed'.lower() in confDict['SCAN_TYPE'].lower()) or ('stare'.lower()) in confDict[
+                'SCAN_TYPE'].lower()):
+                print("processing 'Windcube-fixed/-stare' setting!")
+                ds = xr.concat((hpl_files.read_wcsradial(iit, confDict) for iit in hpl_list.name
+                                if hpl_files.read_wcsradial(iit, confDict) is not False)
+                               , dim='time'  # , combine='nested'#,compat='identical'
+                               , data_vars='minimal'
+                               , compat='override'
+                               , coords='minimal')
+                ds['nqv'].values = ((ds.dv.max() - ds.dv.min()).data / 2).astype('f4')
+                ds['nqf'].values = (2 * ds.nqv.data / float(confDict['SYSTEM_WAVELENGTH'])).astype('f4')
+                ds['resv'].values = (2 * ds.nqv.data / float(confDict['FFT_POINTS'])).astype('f4')
+                ## delete 'delv' variable, if all entries are NaN.
+                if (ds.delv == -999.).all():
+                    ds = ds.drop_vars(['delv'])
+            else:
+                print("processing 'WindCube-dbs/-vad/-pp' setting!")
+                ds = xr.concat((hpl_files.read_wc_type(iit) for iit in hpl_list.name
+                                if hpl_files.read_wc_type(iit) is not False)
+                               , dim='time'  # , combine='nested'#,compat='identical'
+                               , data_vars='minimal'
+                               , compat='override'
+                               , coords='minimal')
+                ds['nqv'] = ((ds.radial_wind_speed.max() - ds.radial_wind_speed.min()).data / 2).astype('f4')
+                ds['nqf'] = (2 * ds.nqv.data / float(confDict['SYSTEM_WAVELENGTH'])).astype('f4')
+                ds['resv'] = (2 * ds.nqv.data / float(confDict['FFT_POINTS'])).astype('f4')
+                # print('dropping "delv" / "spectral width", because all are NaN!')
+        # if os.name == 'nt':
+        #  ds = ds._drop_vars(['delv'])
+        # else:
+        #  ds = ds.drop_vars(['delv'])
+        ##!!!NOTE!!!##
+        # There was an issue under windows, possible due to a version problem,
+        # so in case an Attribute error occurs change line 126 to following
+        # ds = ds._drop_vars(['delv'])
+        ## choose only timestamp within range...
+        if time_chosen is not None:
+            # ...a time window of range AVG_MIN
+            start_dt = (pd.to_datetime(
+                time_chosen - datetime.timedelta(minutes=int(confDict['AVG_MIN']))) - pd.Timestamp(
+                "1970-01-01")) / pd.Timedelta('1s')
+            end_dt = (pd.to_datetime(time_chosen) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
+        else:
+            # ...a daily range
+            start_dt = (pd.to_datetime(date_chosen.date()) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
+            end_dt = (pd.to_datetime(date_chosen + datetime.timedelta(days=+1)) - pd.Timestamp(
+                "1970-01-01")) / pd.Timedelta('1s')
+        print(start_dt, ds.time[0].data)
+        print(end_dt, ds.time[-1].data)
+        ds = ds.isel(time=np.where((ds.time >= start_dt) & (ds.time <= end_dt))[0])
+        ds.attrs['title'] = confDict['NC_TITLE']
+        ds.attrs['institution'] = confDict['NC_INSTITUTION']
+        ds.attrs['site_location'] = confDict['NC_SITE_LOCATION']
+        ds.attrs['source'] = confDict['NC_SOURCE']
+        ds.attrs['instrument_type'] = confDict['NC_INSTRUMENT_TYPE']
+        ds.attrs['instrument_mode'] = confDict['NC_INSTRUMENT_MODE']
+        if 'NC_INSTRUMENT_FIRMWARE_VERSION' in confDict:
+            ds.attrs['instrument_firmware_version'] = confDict['NC_INSTRUMENT_FIRMWARE_VERSION']
+        else:
+            ds.attrs['instrument_firmware_version'] = 'N/A'
+        ds.attrs['instrument_contact'] = confDict['NC_INSTRUMENT_CONTACT']
+        if 'NC_INSTRUMENT_ID' in confDict:
+            ds.attrs['instrument_id'] = confDict['NC_INSTRUMENT_ID']
+        else:
+            ds.attrs['instrument_id'] = 'N/A'
+            # ds.attrs['Source']= "HALO Photonics Doppler lidar (system_id: " + confDict['SYSTEM_ID']
+        ds.attrs['conventions'] = confDict['NC_CONVENTIONS']
+        ds.attrs['processing_date'] = str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
+        # ds.attrs['Author']= confDict['NC_AUTHOR']
+        ds.attrs['instrument_contact'] = confDict['NC_INSTRUMENT_CONTACT']
+        ds.attrs['data_policy'] = confDict['NC_DATA_POLICY']
+        # attributes for operational use of netCDFs, see E-Profile wind profiler netCDF version 1.7
+        if 'NC_WIGOS_STATION_ID' in confDict:
+            ds.attrs['wigos_station_id'] = confDict['NC_WIGOS_STATION_ID']
+        else:
+            ds.attrs['wigos_station_id'] = 'N/A'
+        if 'NC_WMO_ID' in confDict:
+            ds.attrs['wmo_id'] = confDict['NC_WMO_ID']
+        else:
+            ds.attrs['wmo_id'] = 'N/A'
+        if 'NC_PI_ID' in confDict:
+            ds.attrs['principal_investigator'] = confDict['NC_PI_ID']
+        else:
+            ds.attrs['principal_investigator'] = 'N/A'
+        if 'NC_INSTRUMENT_SERIAL_NUMBER' in confDict:
+            ds.attrs['instrument_serial_number'] = confDict['NC_INSTRUMENT_SERIAL_NUMBER']
+        else:
+            ds.attrs['instrument_serial_number'] = ' '
+        ds.attrs['history'] = confDict['NC_HISTORY'] + ' version ' + confDict['VERSION'] + ' on ' + str(
+            pd.to_datetime(datetime.datetime.now())) + ' UTC'
+        ds.attrs['comments'] = confDict['NC_COMMENTS']
+        ## add configuration as attribute used to create the file
+        configuration = """"""
+        for dd in confDict:
+            configuration += dd + '=' + confDict[dd] + '\n'
+        ds.attrs['File_Configuration'] = configuration
+
+        # adjust time variable to double (aka float64)
+        ds.time.data.astype(np.float64)
+
+        if 'UTC_OFFSET' in confDict:
+            time_offset = np.timedelta64(int(confDict['UTC_OFFSET']), 'h')
+            time_delta = int(confDict['UTC_OFFSET'])
+        else:
+            time_offset = np.timedelta64(0, 'h')
+            time_delta = 0
+
+        ds.time.attrs['units'] = ('seconds since 1970-01-01 00:00:00',
+                                  'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
+        ds.time.encoding['units'] = ('seconds since 1970-01-01 00:00:00',
+                                     'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
+
+        return ds
 
     @staticmethod
     def read_wc_type(filename):
