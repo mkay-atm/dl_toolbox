@@ -1,5 +1,6 @@
 import datetime
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -92,3 +93,21 @@ def process_dataset(ds_tmp, date_chosen, confDict):
     #             ds_lvl2[item] = ds_lvl2[item].where(np.isnan(ds_lvl2[item]), other=np.nan)
     ds_lvl2.attrs['comments'] = confDict['NC_COMMENTS']
     return ds_lvl2
+
+
+def write_netcdf(ds, filename, confDict):
+    # compress variables
+    comp = dict(zlib=True, complevel=9)
+    encoding = {var: comp for var in np.hstack([ds.data_vars, ds.coords])}
+
+    # set UTC offset
+    if 'UTC_OFFSET' in confDict:
+        time_delta = int(confDict['UTC_OFFSET'])
+    else:
+        time_delta = 0
+    # ds.time.attrs['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
+    ds.time.encoding['units'] = ('seconds since 1970-01-01 00:00:00',
+                                 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta)
+                                 )[abs(np.sign(time_delta))]
+
+    ds.to_netcdf(filename, unlimited_dims={'time': True}, encoding=encoding)

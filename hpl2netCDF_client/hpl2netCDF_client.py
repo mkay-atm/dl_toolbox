@@ -25,7 +25,7 @@ from hpl2netCDF_client.hpl_files.hpl_files import hpl_files
 from hpl2netCDF_client.config.config import config
 from scipy.linalg import diagsvd
 
-from hpl2netCDF_client.main_proc import process_dataset
+from hpl2netCDF_client.main_proc import process_dataset, write_netcdf
 from hpl2netCDF_client.plot_helpers import ql_helper
 from hpl2netCDF_client.signal_calc import in_db, CN_est
 from hpl2netCDF_client.wind_calc import build_Amatrix, uvw_2_spd, uvw_2_dir, calc_sigma_single, consensus, find_num_dir
@@ -169,23 +169,7 @@ class hpl2netCDFClient(object):
         path= path / Path(confDict['NC_L2_BASENAME'] + 'v' +  confDict['VERSION'] + '_' + date_chosen.strftime("%Y%m%d") + '.nc')
 
         print(path)
-        # compress variables
-        comp = dict(zlib=True, complevel=9)
-        encoding = {var: comp for var in np.hstack([ds_lvl2.data_vars,ds_lvl2.coords])}
-        if 'UTC_OFFSET' in confDict:
-            time_delta = int(confDict['UTC_OFFSET'])
-        else:
-            time_delta = 0
-        # ds_lvl2.time.attrs['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
-        ds_lvl2.time.encoding['units'] = ('seconds since 1970-01-01 00:00:00', 'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta))[abs(np.sign(time_delta))]
-        # ## add configuration used to create the file
-        # configuration = """"""
-        # for dd in confDict:
-        #     if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
-        #         configuration += dd + '=' + confDict[dd]+'\n'
-        # ds_lvl2.attrs['File_Configuration']= configuration
-        ## save file to path
-        ds_lvl2.to_netcdf(path, unlimited_dims={'time':True}, encoding=encoding)
+        write_netcdf(ds_lvl2, path, confDict)
         print(path)
         print(ds_lvl2.info)
         ds_lvl2.close()
