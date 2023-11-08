@@ -148,17 +148,28 @@ class hpl2netCDFClient(object):
         # print('check 3')
         # read_idx= hpl_files.reader_idx(hpl_list,confDict,chunks=False)
         # print(hpl_list.name)
-        nc_name= hpl_files.combine_lvl1(hpl_list, confDict, date_chosen)  # TODO: simply return dataset instead of file here
+        nc_name= hpl_files.combine_lvl1(hpl_list, confDict, date_chosen)
         print(nc_name)
         ds_tmp= xr.open_dataset(nc_name)
         print(ds_tmp.info)
         ds_tmp.close()
         
+    def lvl2_from_filelist(self, filelist):
+        date_chosen = self.date2proc
+        confDict = config.gen_confDict(url=self.config_dir)
+        files_hpl = hpl_files.filelist_to_hpl_files(filelist, confDict['SYSTEM'])
+        ds_tmp = hpl_files.combine_lvl1_to_ds(files_hpl, confDict, date_chosen)
+        ds_lvl2 = process_dataset(ds_tmp, date_chosen, confDict)
+        timestamp_out = files_hpl.time[0].strftime("%Y%m%d%H%M")  # set stamp of output file to stamp of first infile
+        file_out = Path(confDict['NC_L2_PATH'] + '/'
+                        + confDict['NC_L2_BASENAME'] + 'v' + confDict['VERSION'] + '_' + timestamp_out + '.nc')
+        write_netcdf(ds_lvl2, file_out, confDict)
+
     def dailylvl2(self):
         date_chosen = self.date2proc
         confDict= config.gen_confDict(url= self.config_dir)
         
-        ds_tmp = import_lvl1(date_chosen, confDict)  # TODO: simply get the dataset from above here
+        ds_tmp = import_lvl1(date_chosen, confDict)
 
         ds_lvl2 = process_dataset(ds_tmp, date_chosen, confDict)
 
