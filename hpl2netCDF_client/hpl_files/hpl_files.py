@@ -58,6 +58,10 @@ class hpl_files(object):
 
     @staticmethod
     def filelist_to_hpl_files(files, inst_type):
+        # this routine can be entry point to the hpl_files class, therefore:
+        #   - ensure files are Path objects and not strings
+        #   - ensure files in list are unique to avoid segmentation faults
+        files = list(set(Path(file) for file in files))
         if inst_type.lower() == 'halo':
             file_time = [hpl_files.try_date('T'.join(re.sub('-', '', x.stem).split('_')[2:]))
                          for x in files]
