@@ -34,23 +34,12 @@ class hpl_files(object):
     def make_file_list(date_chosen, confDict, url):
         path = Path(url) / date_chosen.strftime('%Y') / date_chosen.strftime('%Y%m') / date_chosen.strftime('%Y%m%d')
         #confDict= config.gen_confDict()
-        ## for halo
+
         if confDict['SYSTEM'] == 'halo':
-            
             scan_type = confDict['SCAN_TYPE']
             mylist = list(path.glob('**/' + scan_type + '*.hpl'))
-            
-            file_time = [ hpl_files.try_date('T'.join(re.sub('-', '', x.stem
-                                                            ).split('_')[2:])
-                                            ) for x in mylist 
-                        ] 
-            # sort files according to time stamp
-            file_list = [ mylist[ii] for ii in np.argsort(file_time).astype('int') ]
-            
-            return hpl_files(file_list, np.sort(file_time))
-        ## for windcube                     
-        elif  confDict['SYSTEM'] == 'windcube':
 
+        elif confDict['SYSTEM'] == 'windcube':
             scan_type = confDict['SCAN_TYPE'].lower().split('_')[0]
             l_rg =  '*' + confDict['RANGE_GATE_LENGTH'] + 'm'
             if abs((date_chosen - datetime.datetime(date_chosen.year, date_chosen.month, date_chosen.day)).total_seconds()) > 0:
@@ -64,16 +53,23 @@ class hpl_files(object):
                 mylist = list(filter(lambda k: 'TP' in k.stem, mylist))
             else:
                 mylist = list(filter(lambda k: not 'TP' in k.stem, mylist))
-                
-            file_time = [ hpl_files.try_date('T'.join(re.sub('-', '', x.stem
-                                                            ).split('_')[1:3])
-                                            ) 
-                          for x in mylist ] 
-            file_list = [mylist[idx] for idx in np.argsort(file_time).astype(int)]
 
-            return hpl_files(file_list, np.sort(file_time))
-    
-    # function used for calculation of range bounds
+        return hpl_files.filelist_to_hpl_files(mylist, confDict['SYSTEM'])
+
+    @staticmethod
+    def filelist_to_hpl_files(files, inst_type):
+        if inst_type.lower() == 'halo':
+            file_time = [hpl_files.try_date('T'.join(re.sub('-', '', x.stem).split('_')[2:]))
+                         for x in files]
+        elif inst_type.lower() == 'windcube':
+            file_time = [hpl_files.try_date('T'.join(re.sub('-', '', x.stem).split('_')[1:3]))
+                         for x in files]
+        else:
+            raise ValueError("allowed values for inst_type are 'halo' and 'windcube' but found this: " + inst_type)
+
+        files_sorted = [files[idx] for idx in np.argsort(file_time).astype(int)]
+        return hpl_files(files_sorted, np.sort(file_time))
+
     @staticmethod
     def range_calc(rg_vec, confDict):
         '''Calculate range bounds, also accounting for overlapping gates. If your hpl-files contain overlapping gates please add the "OVERLAPPING_GATES" argument to the configuration file.'''
