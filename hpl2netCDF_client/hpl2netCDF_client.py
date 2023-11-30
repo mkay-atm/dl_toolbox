@@ -160,6 +160,9 @@ class hpl2netCDFClient(object):
         files_hpl = hpl_files.filelist_to_hpl_files(filelist, confDict['SYSTEM'])
         ds_tmp = hpl_files.combine_lvl1_to_ds(files_hpl, confDict, date_chosen)
         ds_lvl2 = process_dataset(ds_tmp, date_chosen, confDict)
+        ds_lvl2.attrs['scan_type'] = confDict['SCAN_TYPE']
+
+        # to output file
         timestamp_out = files_hpl.time[0].strftime("%Y%m%d%H%M")  # set stamp of output file to stamp of first infile
         aux_fn_info = ''
         if version_in_filename:
