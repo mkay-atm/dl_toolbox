@@ -58,19 +58,24 @@ class hpl_files(object):
 
     @staticmethod
     def filelist_to_hpl_files(files, inst_type, base_filename=None):
+
+        fileparts_separator = '_'  # separator between parts of filename, e.g. date and instrument id
+
         # this routine can be entry point to the hpl_files class, therefore:
         #   - ensure files are Path objects and not strings
         #   - ensure files in list are unique to avoid segmentation faults
+
         files = list(set(Path(file) for file in files))
 
         if base_filename is not None:
             # input checking
             if not isinstance(base_filename, str):
                 raise ValueError("type of input argument 'base_filename' must be string or None")
-            if files[0].name[len(base_filename)] == '_':
-                raise ValueError("input argument 'base_filename' must also contain the tailing fileparts separator '_'")
-            # get number of fileparts in base_filename
-            len_basename_parts = len(base_filename.split('_')) - 1  # splits off empty part as separator is last digit
+            if files[0].name[len(base_filename)] == fileparts_separator:
+                raise ValueError("input argument 'base_filename' must also contain the tailing fileparts separator "
+                                 + fileparts_separator)
+            # get number of fileparts in base_filename (as fileparts_separator is last digit, empty part will be split)
+            len_basename_parts = len(base_filename.split(fileparts_separator)) - 1  # correct for final empty part
         else:
             len_basename_parts = None
 
@@ -85,7 +90,7 @@ class hpl_files(object):
         else:
             raise ValueError("allowed values for inst_type are 'halo' and 'windcube' but found this: " + inst_type)
 
-        file_time = [hpl_files.try_date('T'.join(re.sub('-', '', x.stem).split('_')[ind_date]))
+        file_time = [hpl_files.try_date('T'.join(re.sub('-', '', x.stem).split(fileparts_separator)[ind_date]))
                      for x in files]
         files_sorted = [files[idx] for idx in np.argsort(file_time).astype(int)]
 
