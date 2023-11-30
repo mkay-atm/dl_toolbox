@@ -57,21 +57,38 @@ class hpl_files(object):
         return hpl_files.filelist_to_hpl_files(mylist, confDict['SYSTEM'])
 
     @staticmethod
-    def filelist_to_hpl_files(files, inst_type):
+    def filelist_to_hpl_files(files, inst_type, base_filename=None):
         # this routine can be entry point to the hpl_files class, therefore:
         #   - ensure files are Path objects and not strings
         #   - ensure files in list are unique to avoid segmentation faults
         files = list(set(Path(file) for file in files))
+
+        if base_filename is not None:
+            # input checking
+            if not isinstance(base_filename, str):
+                raise ValueError("type of input argument 'base_filename' must be string or None")
+            if files[0].name[len(base_filename)] == '_':
+                raise ValueError("input argument 'base_filename' must also contain the tailing fileparts separator '_'")
+            # get number of fileparts in base_filename
+            len_basename_parts = len(base_filename.split('_')) - 1  # splits off empty part as separator is last digit
+        else:
+            len_basename_parts = None
+
         if inst_type.lower() == 'halo':
-            file_time = [hpl_files.try_date('T'.join(re.sub('-', '', x.stem).split('_')[2:]))
-                         for x in files]
+            if base_filename is None:
+                len_basename_parts = 2
+            ind_date = slice(len_basename_parts, None)
         elif inst_type.lower() == 'windcube':
-            file_time = [hpl_files.try_date('T'.join(re.sub('-', '', x.stem).split('_')[1:3]))
-                         for x in files]
+            if base_filename is None:
+                len_basename_parts = 1
+            ind_date = slice(len_basename_parts, len_basename_parts+2)
         else:
             raise ValueError("allowed values for inst_type are 'halo' and 'windcube' but found this: " + inst_type)
 
+        file_time = [hpl_files.try_date('T'.join(re.sub('-', '', x.stem).split('_')[ind_date]))
+                     for x in files]
         files_sorted = [files[idx] for idx in np.argsort(file_time).astype(int)]
+
         return hpl_files(files_sorted, np.sort(file_time))
 
     @staticmethod
