@@ -169,6 +169,7 @@ class hpl2netCDFClient(object):
             aux_fn_info += 'v' + confDict['VERSION'] + '_'
         file_out = Path(confDict['NC_L2_PATH'] + '/'
                         + confDict['NC_L2_BASENAME'] + aux_fn_info + timestamp_out + '.nc')
+        print('writing results to {}'.format(file_out))
         write_netcdf(ds_lvl2, file_out, confDict)
 
     def dailylvl2(self):
