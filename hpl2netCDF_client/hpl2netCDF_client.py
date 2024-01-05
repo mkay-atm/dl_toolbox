@@ -155,6 +155,15 @@ class hpl2netCDFClient(object):
         ds_tmp.close()
         
     def lvl2_from_filelist(self, filelist, infile_prefix='XXX_', version_in_filename=False):
+        """generate file containing wind field time series from list of raw input files
+
+        Args:
+            filelist: list of raw input files to be processed
+            infile_prefix (optional): prefix of input filenames before date starts. Only number of underscores matter.
+                Leave at default value to process files with standard filename convention produced by halo and windcube.
+            version_in_filename(optional): include version specified in config to output filename. Defaults to False.
+        """
+
         date_chosen = self.date2proc
         confDict = config.gen_confDict(url=self.config_dir)
         files_hpl = hpl_files.filelist_to_hpl_files(filelist, confDict['SYSTEM'], infile_prefix)
