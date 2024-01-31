@@ -327,7 +327,7 @@ def consensus(Vr,SNR,BETA,CNS_range,CNS_percentage,SNR_threshold,B):
     if SNR_threshold == 0:
         condi_snr = condi_0
     else:
-        condi_snr = (10*np.log10(SNR.astype(np.complex)).real > SNR_threshold) & (BETA > 0)
+        condi_snr = (10*np.log10(SNR.astype(complex)).real > SNR_threshold) & (BETA > 0)
 
     Vr_m = np.ma.masked_where( ~condi_snr, Vr)
     condi_vr = (abs(Vr_m.filled(-999.)) <= B)
@@ -551,7 +551,105 @@ def find_num_dir(n_rays,calc_idx,azimuth,idx_valid):
         else:
             print('not enough valid directions!-->skip non-convergent time windows' )
             return np.all(check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]), n_rays, check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[1], check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[2]
+###################################################################################################
+## helper functions for plotting
+def pbdist_alt(x_i,x_ip1,L):
+    return ((x_ip1-x_i) - L*np.rint((x_ip1-x_i) / L))
 
+def ql_helper(ds, confDict):
+    # define limits for the range of backscatter values
+    if confDict['SYSTEM'].lower() == 'halo':
+        vmin, vmax= 1e-7, 1e-4
+            
+    if confDict['SYSTEM'].lower() == 'windcube':
+        vmin, vmax= 1e-8, 1e-6
+        if ('relative_beta' not in list(ds.keys())) and ('beta' not in list(ds.keys())):
+            print('no backscatter data in file, plot CNR instead')
+            ds['relative_beta'] = ds.cnr
+            vmin, vmax= -40, 10
+
+    # use equal names        
+    try:
+        ds.elevation
+        ds = ds.rename({'azimuth': 'azi', 'relative_beta': 'beta'})
+    except:
+        ds['elevation'] = 90 - ds.zenith
+              
+    # check if cycles need to be identified    
+    if len(np.unique(ds.azi.round() % 360))<4:
+        condi = False
+        azi = ds.azi.data
+        beta = ds.beta.data
+        time = ds.time
+        if len(list(ds.range.shape)) < 2:
+            range_vec =  ds.range.data
+        else:
+            range_vec =  ds.range.data[0]
+        elevation = ds.elevation.data
+    else:
+        condi = True
+        idt = np.where(ds.elevation.data<89)[0]
+        time = ds.time[idt]
+        azi = ds.azi.data[idt]
+        beta = ds.beta.data[idt]
+        if len(list(ds.range.shape)) < 2:
+            range_vec =  ds.range.data
+        else:
+            range_vec =  ds.range.data[idt][0]
+        elevation = ds.elevation.data[idt]
+    # prepare data for plotting   
+    # indentify maxima of each cycle
+    if condi:
+        #         data = np.mod(azi-azi[0], 360)
+#         index = np.where(abs(np.diff(data)) > 93)[0]
+#         ## old method
+#         # cycles = get_cycles(data, int(np.median(np.sign(np.diff(np.array(data)))))) 
+#         ## new method
+#         cycles = {}
+#         start = 0
+#         for ii,ind in enumerate(index):
+#             if ind == index[-1]:
+#                 cycles.update( { ii: {'indices': np.arange(start, len(azi)), 'values': azi[start:len(azi)]} })
+#                 # print('finished cycling!')
+#             else:
+#                 cycles.update( { ii: {'indices': np.arange(start, ind+1), 'values': azi[start:ind+1]} })
+#                 start = ind+1
+#         df= pd.DataFrame.from_dict(cycles, orient='index')
+#         df['indices'].apply(lambda row: len(row)).median()
+
+
+#         Z = beta
+#         mask= (np.isnan(Z)) | (Z==-999.)
+#         masked_Z = np.ma.masked_where(mask, Z)
+#         beta_max = np.empty((df.__len__(), beta.shape[1]))
+#         time_mean = np.empty((df.__len__()))
+
+#         for ii in range(df.__len__()):
+#             time_mean[ii] = time[df['indices'][ii]].mean(dim='time')
+#             beta_max[ii] = np.max(Z[df['indices'][ii]], axis=0)
+        Z = beta
+        mask= (np.isnan(Z)) | (Z==-999.)
+        masked_Z = np.ma.masked_where(mask, Z)
+        # id_condi = np.round(pbdist_alt(azi[:-1].round() % 360, azi[1:].round() % 360, 180)) < 0
+        id_condi = np.round(azi[:-1].round() % 360 - azi[1:].round() % 360) >= 180
+        idx = np.where(np.hstack([True, id_condi]))[0]
+        beta_max = np.full((sum(id_condi), beta.shape[1]), np.nan)
+        time_mean = np.empty((sum(id_condi),))
+        for ii, (start, end) in enumerate(zip(idx[:-1], idx[1:])):
+            if end-start > 3:
+                time_mean[ii] = time[start:end].mean().data
+                beta_max[ii] = Z[start:end].max(axis=0)
+            else:
+                time_mean[ii] = time[start:end].mean().data
+                continue
+
+    else:
+        Z = beta
+        mask= (np.isnan(Z)) | (Z==-999.)
+        beta_max = Z
+        time_mean =  time.data
+        
+    return beta_max, time_mean, range_vec, elevation, vmin, vmax
                     
         
 ### the actual processing is done in this class
@@ -754,7 +852,7 @@ class hpl2netCDFClient(object):
                 # plausible winds can only be calculated, when the at least three LOS measurements are present
                 UVW[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
-                UVWunc[kk, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(np.complex)).real))
+                UVWunc[kk, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(complex)).real))
                 # plausible winds can only be calculated, when the at least three LOS measurements are present
                 UVWunc[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
@@ -835,8 +933,8 @@ class hpl2netCDFClient(object):
         for dd in confDict:
             if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
                 configuration += dd + '=' + confDict[dd]+'\n'
-        if 'BLINDEZONE_GATES' in confDict:
-            NN = int(confDict['BLINDEZONE_GATES'])
+        if 'BLINDZONE_GATES' in confDict:
+            NN = int(confDict['BLINDZONE_GATES'])
         else:
             NN = 0
         return xr.Dataset({ 'config': ([]
@@ -1105,11 +1203,18 @@ class hpl2netCDFClient(object):
         cnr = 10**(ds_comb.cnr.data/10)
         dv = ds_comb.radial_wind_speed.data
         delv = ds_comb.doppler_spectrum_width.data
-        beta = ds_comb.relative_beta.data
-        height = ds_comb.measurement_height.data[0]
+        if 'relative_beta' in list(ds_comb.keys()):
+            beta = ds_comb.relative_beta.data
+        else:
+            print('no backscatter data in file, set all beta to 1')
+            beta = np.ones(dv.shape)
+        if 'measurement_height' in list(ds_comb.keys()):
+            height = ds_comb.measurement_height.data[0]
+        else:
+            height = (np.sin(ds_comb.elevation*np.pi/180)*ds_comb.range).data[0]
+            
         width = (np.cos(ds_comb.elevation*np.pi/180)*ds_comb.range*2).data
         width = width[elevation<89][0]
-        
         height_bnds = np.vstack([height-lrg/2, height-lrg/2]).T
         
         if 'UTC_OFFSET' in confDict:
@@ -1271,7 +1376,7 @@ class hpl2netCDFClient(object):
                 # plausible winds can only be calculated, when the at least three LOS measurements are present
                 UVW[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
-                UVWunc[kk, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(np.complex)).real))
+                UVWunc[kk, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(complex)).real))
                 # plausible winds can only be calculated, when the at least three LOS measurements are present
                 UVWunc[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
@@ -1352,8 +1457,8 @@ class hpl2netCDFClient(object):
         for dd in confDict:
             if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
                 configuration += dd + '=' + confDict[dd]+'\n'
-        if 'BLINDEZONE_GATES' in confDict:
-            NN = int(confDict['BLINDEZONE_GATES'])
+        if 'BLINDZONE_GATES' in confDict:
+            NN = int(confDict['BLINDZONE_GATES'])
         else:
             NN = 0
         
@@ -1655,13 +1760,14 @@ class hpl2netCDFClient(object):
         
         ds_tmp = import_lvl1(date_chosen, confDict)
         
-        if confDict['SYSTEM'] == 'windcube':
+        if confDict['SYSTEM'].lower() == 'windcube':
             
-            if (len(ds_tmp.range.dims) > 1):
-                if ('dbs' in confDict['SCAN_TYPE'].lower()) or ('vad' in confDict['SCAN_TYPE'].lower()):
+            #if (len(ds_tmp.range.dims) > 1):
+            if 'fixed' not in confDict['SCAN_TYPE'].lower():
+                if ('dbs' in confDict['SCAN_TYPE'].lower()) or ('vad' in confDict['SCAN_TYPE'].lower()) or ('ppi' in confDict['SCAN_TYPE'].lower()):
                     print("processing 'Windcube-dbs/-vad' setting!")
                     ds_lvl2 = hpl2netCDFClient.lvl2wcdbs(ds_tmp, date_chosen, confDict)
-            if ('rhi' in confDict['SCAN_TYPE'].lower()):
+                if ('rhi' in confDict['SCAN_TYPE'].lower()):
                     print("settings for RHI not yet implemented!")
                     # create place holder dataset
                     ds_lvl2 = xr.Dataset()
@@ -1675,7 +1781,7 @@ class hpl2netCDFClient(object):
                     # create place holder dataset
                     ds_lvl2 = xr.Dataset()
                 
-        if confDict['SYSTEM'] == 'halo':
+        if confDict['SYSTEM'].lower() == 'halo':
             if (len(ds_tmp.range.dims) > 1) & (confDict['SCAN_TYPE'] == 'DBS'):
                 print("processing 'Streamline-dbs' setting!")
                 ds_lvl2 = hpl2netCDFClient.lvl2vad_standard(ds_tmp, date_chosen, confDict)
@@ -1827,7 +1933,8 @@ class hpl2netCDFClient(object):
             masked_WS = np.ma.masked_where(mask,WS)
 
             # define adjustable and discretized colormap
-            wsmax= max(np.round(masked_WS.max(),-1), 10)
+            # wsmax = max(np.round(masked_WS.max(),-1), 10)
+            wsmax = max(np.round(np.nanpercentile(masked_WS.filled(np.nan).flatten(), 95), -1) + 10, 10)
             palette = plt.get_cmap(cmap_discretize(cm.jet,int(wsmax)))
             palette.set_under('white', 1.0)
             # define x-axis values
@@ -1961,48 +2068,8 @@ class hpl2netCDFClient(object):
             time_delta = 0
 
         ds = import_lvl1(date_chosen, confDict)
-
-        if (confDict['SYSTEM'].lower() == 'windcube') & ('fixed' not in confDict['SCAN_TYPE'].lower()):
-            azi = ds.where(ds.elevation<89, drop=True).azimuth.data
-            beta = ds.where(ds.elevation<89, drop=True).relative_beta.data
-            time = ds.where(ds.elevation<89, drop=True).time
-            range_vec =  ds.where(ds.elevation<89, drop=True).range.data[0]
-            elevation = ds.where(ds.elevation<89, drop=True).elevation.data
-        else:
-            azi = ds.where(ds.zenith>1, drop=True).azi.data
-            beta = ds.where(ds.zenith>1, drop=True).beta.data
-            time = ds.where(ds.zenith>1, drop=True).time
-            range_vec =  ds.where(ds.zenith>1, drop=True).range.data
-            elevation = 90 - ds.where(ds.zenith>1, drop=True).zenith.data
-
-        data = np.mod(azi-azi[0], 360)
-        index = np.where(abs(np.diff(data)) > 93)[0]
-        ## old method
-        # cycles = get_cycles(data, int(np.median(np.sign(np.diff(np.array(data)))))) 
-        ## new method
-        cycles = {}
-        start = 0
-        for ii,ind in enumerate(index):
-            if ind == index[-1]:
-                cycles.update( { ii: {'indices': np.arange(start, len(azi)), 'values': ds.azi[start:len(azi)]} })
-                # print('finished cycling!')
-            else:
-                cycles.update( { ii: {'indices': np.arange(start, ind+1), 'values': azi[start:ind+1]} })
-                start = ind+1
-        df= pd.DataFrame.from_dict(cycles, orient='index')
-        df['indices'].apply(lambda row: len(row)).median()
-
-
-        Z = beta
-        mask= (np.isnan(Z)) | (Z==-999.)
-        masked_Z = np.ma.masked_where(mask, Z)
-        beta_max = np.empty((df.__len__(), beta.shape[1]))
-        time_mean = np.empty((df.__len__()))
-
-        for ii in range(df.__len__()):
-            time_mean[ii] = time[df['indices'][ii]].mean(dim='time')
-            beta_max[ii] = np.max(Z[df['indices'][ii]], axis=0)
-
+        condi = ('relative_beta' not in list(ds.keys())) and ('beta' not in list(ds.keys()))
+        beta_max, time_mean, range_vec, elevation, vmin, vmax = ql_helper(ds, confDict)
 
         fig, axes= plt.subplots(1,1,figsize=(18, 12))
         # set figure bachground color, "'None'" means transparent; use 'w' as alternative
@@ -2022,16 +2089,26 @@ class hpl2netCDFClient(object):
             print('no quick look  is saved')
         else:
             mask= np.isnan(Z)
-            masked_Z = np.ma.masked_where(mask, Z)           
-
-            c_temp = ax.pcolormesh(  X.T, Y.T
-                                , masked_Z
-                                , cmap=cm.gnuplot2
-                                , norm=mcolors.LogNorm(vmin=1e-7, vmax=1e-4)
-                                )
+            masked_Z = np.ma.masked_where(mask, Z)
+            # print(list(ds.keys()))
+            if condi:
+                print(vmin, vmax)
+                str_bck = r'$\rm{CNR}\;/\;\rm{dB}$'
+                c_temp = ax.pcolormesh(  X.T, Y.T
+                                    , masked_Z
+                                    , cmap=cm.gnuplot2
+                                    , vmin=vmin, vmax=vmax
+                                    )
+            else:
+                str_bck = r'$\rm{attenuated\;backscatter}\;/\;\rm{m}^{-1}\,\rm{sr}^{-1}$'
+                c_temp = ax.pcolormesh(  X.T, Y.T
+                                    , masked_Z
+                                    , cmap=cm.gnuplot2
+                                    , norm=mcolors.LogNorm(vmin=vmin, vmax=vmax)
+                                    )
             
             cbar = fig.colorbar(c_temp, ax=ax, extend='both', pad=0.01)
-            cbar.set_label(r'$\rm{attenuated\;backscatter}\;/\;\rm{m}^{-1}\,\rm{sr}^{-1}$', rotation=270,
+            cbar.set_label(str_bck, rotation=270,
                         fontsize=22, labelpad=37)
             # cbar.ax.tick_params(labelsize=27, length = 0, width = 2, dir17ection= 'in')
             cbar.ax.tick_params(which='major', direction= 'out', length = 14, width = 2, labelsize=22)
@@ -2386,7 +2463,7 @@ class hpl2netCDFClient(object):
                 # plausible winds can only be calculated, when the at least three LOS measurements are present
                 UVW[0, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
-                UVWunc[0, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(np.complex)).real))
+                UVWunc[0, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(complex)).real))
                 # plausible winds can only be calculated, when the at least three LOS measurements are present
                 UVWunc[0, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
 
@@ -2467,8 +2544,8 @@ class hpl2netCDFClient(object):
         for dd in confDict:
             if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
                 configuration += dd + '=' + confDict[dd]+'\n'
-        if 'BLINDEZONE_GATES' in confDict:
-            NN = int(confDict['BLINDEZONE_GATES'])
+        if 'BLINDZONE_GATES' in confDict:
+            NN = int(confDict['BLINDZONE_GATES'])
         else:
             NN = 0
         ds_lvl2= xr.Dataset({ 'config': ([]
