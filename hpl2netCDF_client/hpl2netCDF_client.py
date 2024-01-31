@@ -933,8 +933,8 @@ class hpl2netCDFClient(object):
         for dd in confDict:
             if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
                 configuration += dd + '=' + confDict[dd]+'\n'
-        if 'BLINDEZONE_GATES' in confDict:
-            NN = int(confDict['BLINDEZONE_GATES'])
+        if 'BLINDZONE_GATES' in confDict:
+            NN = int(confDict['BLINDZONE_GATES'])
         else:
             NN = 0
         return xr.Dataset({ 'config': ([]
@@ -1457,8 +1457,8 @@ class hpl2netCDFClient(object):
         for dd in confDict:
             if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
                 configuration += dd + '=' + confDict[dd]+'\n'
-        if 'BLINDEZONE_GATES' in confDict:
-            NN = int(confDict['BLINDEZONE_GATES'])
+        if 'BLINDZONE_GATES' in confDict:
+            NN = int(confDict['BLINDZONE_GATES'])
         else:
             NN = 0
         
@@ -2544,8 +2544,8 @@ class hpl2netCDFClient(object):
         for dd in confDict:
             if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
                 configuration += dd + '=' + confDict[dd]+'\n'
-        if 'BLINDEZONE_GATES' in confDict:
-            NN = int(confDict['BLINDEZONE_GATES'])
+        if 'BLINDZONE_GATES' in confDict:
+            NN = int(confDict['BLINDZONE_GATES'])
         else:
             NN = 0
         ds_lvl2= xr.Dataset({ 'config': ([]
