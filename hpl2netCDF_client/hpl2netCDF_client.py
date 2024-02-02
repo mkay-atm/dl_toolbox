@@ -1898,7 +1898,7 @@ class hpl2netCDFClient(object):
             
         fig, axes= plt.subplots(1,1,figsize=(18,12))
         # set figure bachground color, "'None'" means transparent; use 'w' as alternative
-        fig.set_facecolor('None')
+        fig.set_facecolor('w')
         ax= axes
         # make spines' linewidth thicker
         ax.spines['left'].set_linewidth(2)
@@ -2073,7 +2073,7 @@ class hpl2netCDFClient(object):
 
         fig, axes= plt.subplots(1,1,figsize=(18, 12))
         # set figure bachground color, "'None'" means transparent; use 'w' as alternative
-        fig.set_facecolor('None')
+        fig.set_facecolor('w')
         ax= axes
         # make spines' linewidth thicker
         ax.spines['left'].set_linewidth(2)
