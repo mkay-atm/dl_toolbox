@@ -48,6 +48,10 @@ def lvl2vad_standard(ds_tmp, date_chosen, confDict):
                          , date_chosen + datetime.timedelta(days=1) - datetime.timedelta(hours=time_delta)
                          + datetime.timedelta(minutes=int(confDict['AVG_MIN']))
                          , datetime.timedelta(minutes=int(confDict['AVG_MIN'])))
+    if not isinstance(time_ds[0], type(time_vec[0])):
+        # time_ds should be a datetime as this points, which is not the case and makes the following line fail
+        # One idea can be to correct it at creation (in hpl_files.py) but this might break other things...
+        time_ds = [datetime.datetime.fromtimestamp(t) for t in time_ds]
     calc_idx = [np.where((ii <= time_ds) * (time_ds < iip1))
                 for ii, iip1 in zip(time_vec[0:-1], time_vec[1::])]
     # Keeping only calculation indices that are not empty:
