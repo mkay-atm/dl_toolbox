@@ -50,6 +50,8 @@ def lvl2vad_standard(ds_tmp, date_chosen, confDict):
                          , datetime.timedelta(minutes=int(confDict['AVG_MIN'])))
     calc_idx = [np.where((ii <= time_ds) * (time_ds < iip1))
                 for ii, iip1 in zip(time_vec[0:-1], time_vec[1::])]
+    # Keeping only calculation indices that are not empty:
+    calc_idx = [x for x in calc_idx if len(x[0]) != 0]
     time_start = np.array([int(pd.to_datetime(time_ds[t[0][-1]]).replace(tzinfo=datetime.timezone.utc).timestamp())
                            if len(t[0]) != 0
                            else int(pd.to_datetime(time_vec[ii + 1]).replace(tzinfo=datetime.timezone.utc).timestamp())
@@ -581,6 +583,8 @@ def lvl2wcdbs(ds_comb, date_chosen, confDict):
                          , datetime.timedelta(minutes=int(confDict['AVG_MIN'])))
     calc_idx = [np.where((ii <= time_ds) * (time_ds < iip1))
                 for ii, iip1 in zip(time_vec[0:-1], time_vec[1::])]
+    # Keeping only calculation indices that are not empty:
+    calc_idx = [x for x in calc_idx if len(x[0]) != 0]
     time_start = np.array([int(pd.to_datetime(time_ds[t[0][-1]]).replace(tzinfo=datetime.timezone.utc).timestamp())
                            if len(t[0]) != 0
                            else int(pd.to_datetime(time_vec[ii + 1]).replace(tzinfo=datetime.timezone.utc).timestamp())
@@ -601,7 +605,6 @@ def lvl2wcdbs(ds_comb, date_chosen, confDict):
     # infer number of directions
     # don't forget to check for empty calc_idx
     time_valid = [ii for ii, x in enumerate(calc_idx) if len(x[0]) != 0]
-
     UVW = np.full((len(calc_idx), n_gates, 3), np.nan)
     UVWunc = np.full((len(calc_idx), n_gates, 3), np.nan)
     SPEED = np.full((len(calc_idx), n_gates), np.nan)
@@ -618,7 +621,7 @@ def lvl2wcdbs(ds_comb, date_chosen, confDict):
     # time_ds = time[np.where(ds)]
 
     for kk in time_valid:
-        print('processed ' + str(np.floor(100 * kk / (len(calc_idx) - 1))) + ' %')
+        #print('processed ' + str(np.floor(100 * kk / (len(calc_idx) - 1))) + ' %')
         # read lidar parameters
         n_rays = int(confDict['NUMBER_OF_DIRECTIONS'])
         indicator, n_rays, azi_mean, azi_edges = find_num_dir(n_rays, calc_idx, azimuth, kk)

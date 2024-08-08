@@ -110,4 +110,6 @@ def write_netcdf(ds, filename, confDict):
                                  'seconds since 1970-01-01 00:00:00 {:+03d}'.format(time_delta)
                                  )[abs(np.sign(time_delta))]
 
+    if len(ds.time)>1:
+        print('Length of time dimension written to netCDF: ', len(ds.time))
     ds.to_netcdf(filename, unlimited_dims={'time': True}, encoding=encoding)
