@@ -91,7 +91,7 @@ def lvl2vad_standard(ds_tmp, date_chosen, confDict):
     SIGMA_tot = np.full((len(calc_idx), n_gates), np.nan)
 
     for kk in time_valid:
-        print('processed ' + str(np.floor(100 * kk / (len(calc_idx) - 1))) + ' %')
+        #print('processed ' + str(np.floor(100 * kk / (len(calc_idx) - 1))) + ' %')
         # read lidar parameters
         n_rays = int(confDict['NUMBER_OF_DIRECTIONS'])
         indicator, n_rays, azi_mean, azi_edges = find_num_dir(n_rays, calc_idx, azimuth, kk)
