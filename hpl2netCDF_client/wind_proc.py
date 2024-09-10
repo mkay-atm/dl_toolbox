@@ -43,7 +43,7 @@ def lvl2vad_standard(ds_tmp, date_chosen, confDict):
     else:
         time_offset = np.timedelta64(0, 'h')
         time_delta = 0
-
+    
     time_vec = np.arange(date_chosen - datetime.timedelta(hours=time_delta)
                          , date_chosen + datetime.timedelta(days=1) - datetime.timedelta(hours=time_delta)
                          + datetime.timedelta(minutes=int(confDict['AVG_MIN']))
@@ -52,7 +52,6 @@ def lvl2vad_standard(ds_tmp, date_chosen, confDict):
         # time_ds should be a datetime as this points, which is not the case and makes the following line fail
         # One idea can be to correct it at creation (in hpl_files.py) but this might break other things...
         time_ds = [datetime.datetime.fromtimestamp(t) for t in time_ds]
-    #time_vec = np.array([time_ds[0],time_ds[-1]])
     calc_idx = [np.where((ii <= time_ds) * (time_ds < iip1))
                 for ii, iip1 in zip(time_vec[0:-1], time_vec[1::])]
     time_start = np.array([int(pd.to_datetime(time_ds[t[0][-1]]).replace(tzinfo=datetime.timezone.utc).timestamp())
