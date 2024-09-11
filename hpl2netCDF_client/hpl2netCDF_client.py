@@ -94,7 +94,6 @@ def import_lvl2(date_chosen, confDict):
     except:
         print("something went wrong!")
 
-
 ### the actual processing is done in this class
 class hpl2netCDFClient(object):
     def __init__(self, config_dir, cmd, date2proc):
@@ -219,7 +218,7 @@ class hpl2netCDFClient(object):
             
         fig, axes= plt.subplots(1,1,figsize=(18,12))
         # set figure bachground color, "'None'" means transparent; use 'w' as alternative
-        fig.set_facecolor('None')
+        fig.set_facecolor('w')
         ax= axes
         # make spines' linewidth thicker
         ax.spines['left'].set_linewidth(2)
@@ -394,7 +393,7 @@ class hpl2netCDFClient(object):
 
         fig, axes= plt.subplots(1,1,figsize=(18, 12))
         # set figure bachground color, "'None'" means transparent; use 'w' as alternative
-        fig.set_facecolor('None')
+        fig.set_facecolor('w')
         ax= axes
         # make spines' linewidth thicker
         ax.spines['left'].set_linewidth(2)
@@ -865,8 +864,8 @@ class hpl2netCDFClient(object):
         for dd in confDict:
             if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
                 configuration += dd + '=' + confDict[dd]+'\n'
-        if 'BLINDEZONE_GATES' in confDict:
-            NN = int(confDict['BLINDEZONE_GATES'])
+        if 'BLINDZONE_GATES' in confDict:
+            NN = int(confDict['BLINDZONE_GATES'])
         else:
             NN = 0
         ds_lvl2= xr.Dataset({ 'config': ([]
