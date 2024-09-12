@@ -4,12 +4,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from hpl2netCDF_client.wind_proc import lvl2vad_standard, lvl2wcdbs
+from hpl2netCDF_client.wind_proc import lvl2vad_standard, lvl2wcdbs, lvl2vad_nrt
 
 
-def process_dataset(ds_tmp, date_chosen, confDict):
+def process_dataset(ds_tmp, date_chosen, confDict, nrt=False):
     if confDict['SYSTEM'].lower() == 'windcube':
-
+        if nrt:
+            raise ValueError('NRT processing not yet implemented for Windcube')
         # if (len(ds_tmp.range.dims) > 1):
         if 'fixed' not in confDict['SCAN_TYPE'].lower():
             if ('dbs' in confDict['SCAN_TYPE'].lower()) or ('vad' in confDict['SCAN_TYPE'].lower()) or (
@@ -32,15 +33,25 @@ def process_dataset(ds_tmp, date_chosen, confDict):
     if confDict['SYSTEM'].lower() == 'halo':
         if (len(ds_tmp.range.dims) > 1) & (confDict['SCAN_TYPE'] == 'DBS'):
             print("processing 'Streamline-dbs' setting!")
-            ds_lvl2 = lvl2vad_standard(ds_tmp, date_chosen, confDict)
+            if nrt:
+                ds_lvl2 = lvl2vad_nrt(ds_tmp, date_chosen, confDict)
+            else:
+                ds_lvl2 = lvl2vad_standard(ds_tmp, date_chosen, confDict)
         if ('vad' in confDict['SCAN_TYPE'].lower()) | ('user' in confDict['SCAN_TYPE'].lower()):
             print("processing 'Streamline-VAD' setting!")
-            ds_lvl2 = lvl2vad_standard(ds_tmp, date_chosen, confDict)
+            if nrt:
+                ds_lvl2 = lvl2vad_nrt(ds_tmp, date_chosen, confDict)
+            else:
+                ds_lvl2 = lvl2vad_standard(ds_tmp, date_chosen, confDict)
         if ('stare' in confDict['SCAN_TYPE'].lower()):
             print("processing 'Streamline-Stare' setting!")
             print("coming soon!")
             # create place holder dataset
             ds_lvl2 = xr.Dataset()
+    ds_lvl2 = add_attributes(ds_lvl2, confDict)
+    return ds_lvl2
+
+def add_attributes(ds_lvl2, confDict):
     ds_lvl2.attrs['title'] = confDict['NC_TITLE']
     ds_lvl2.attrs['institution'] = confDict['NC_INSTITUTION']
     ds_lvl2.attrs['site_location'] = confDict['NC_SITE_LOCATION']
@@ -93,7 +104,6 @@ def process_dataset(ds_tmp, date_chosen, confDict):
     #             ds_lvl2[item] = ds_lvl2[item].where(np.isnan(ds_lvl2[item]), other=np.nan)
     ds_lvl2.attrs['comments'] = confDict['NC_COMMENTS']
     return ds_lvl2
-
 
 def write_netcdf(ds, filename, confDict):
     # compress variables

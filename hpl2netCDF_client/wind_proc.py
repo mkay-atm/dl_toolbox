@@ -566,6 +566,276 @@ def lvl2wcdbs(ds_comb, date_chosen, confDict):
     # Keeping only calculation indices that are not empty:
     return ds.isel(time=time_valid)
 
+
+def lvl2vad_nrt(ds_tmp, date_chosen, confDict):
+    #time_chosen = self.date2proc + datetime.timedelta(hours=time_delta)
+   
+    # read lidar parameters
+    n_rays = int(confDict['NUMBER_OF_DIRECTIONS'])
+    # number of gates
+    n_gates = int(confDict['NUMBER_OF_GATES'])
+    # number of pulses used in the data point aquisition
+    n = ds_tmp.prf.data
+    # number of points per range gate
+    M = ds_tmp.nsmpl.data
+    # half of detector bandwidth in velocity space
+    B = ds_tmp.nqv.data
+
+    # filter Stares within scan
+    elevation= 90-ds_tmp.zenith.data
+    azimuth= ds_tmp.azi.data[elevation < 89] % 360
+    time_ds = ds_tmp.time.data[elevation < 89]
+    dv= ds_tmp.dv.data[elevation < 89]
+    snr= ds_tmp.intensity.data[elevation < 89]-1
+    beta= ds_tmp.beta.data[elevation < 89]
+
+    height= ds_tmp.range.data*np.sin(np.nanmedian(elevation[elevation < 89])*np.pi/180)
+    width= ds_tmp.range.data*2*np.cos(np.nanmedian(elevation[elevation < 89])*np.pi/180)
+    height_bnds= ds_tmp.range_bnds.data
+    height_bnds[:,0]= np.sin(np.nanmedian(elevation[elevation < 89])*np.pi/180)*(height_bnds[:,0])
+    height_bnds[:,1]= np.sin(np.nanmedian(elevation[elevation < 89])*np.pi/180)*(height_bnds[:,1])
+
+    # define time chunks
+    ## Look for UTC_OFFSET in config
+    if 'UTC_OFFSET' in confDict:
+        time_delta = int(confDict['UTC_OFFSET'])
+    else:
+        time_delta = 0
+        
+    # start_dt = (pd.to_datetime(time_chosen - datetime.timedelta(minutes=int(confDict['AVG_MIN']))) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
+    # end_dt = (pd.to_datetime(time_chosen) - pd.Timestamp("1970-01-01")) / pd.Timedelta('1s')
+    
+    # Defined start and end time from input ds
+    time_ds = [datetime.datetime.fromtimestamp(t) for t in time_ds]
+    start_dt = time_ds[0]
+    end_dt = time_ds[-1]
+    
+    if len(time_ds) != 0:
+        time_bnds = np.array([[  int(pd.to_datetime(time_ds[0]).replace(tzinfo=datetime.timezone.utc).timestamp())
+                                , int(pd.to_datetime(time_ds[-1]).replace(tzinfo=datetime.timezone.utc).timestamp())]
+                            ]).T
+    else:
+        time_bnds = np.array([[start_dt, end_dt]]).T
+                                    
+    time_start = time_bnds[-1, :]
+    calc_idx = np.array([np.arange(len(time_ds))])
+
+    # compare n_gates in lvl1-file and confdict
+    if n_gates != dv.shape[1]:
+        print('Warning: number of gates in config does not match lvl1 data!')
+        n_gates= dv.shape[1]
+        print('number of gates changed to ' + str(n_gates))
+
+    # infer number of directions
+        # don't forget to check for empty calc_idx
+
+    # UVW = np.where(np.zeros((len(calc_idx),n_gates,3)),np.nan,np.nan)
+    UVW = np.full((1, n_gates, 3), np.nan)
+    UVWunc = np.full((1, n_gates, 3), np.nan)
+    SPEED = np.full((1, n_gates), np.nan)
+    SPEEDunc = np.full((1, n_gates), np.nan)
+    DIREC = np.full((1, n_gates), np.nan)
+    DIRECunc = np.full((1, n_gates), np.nan)
+    R2 = np.full((1, n_gates), np.nan)
+    CN = np.full((1, n_gates), np.nan)
+    n_good = np.full((1, n_gates), np.nan)
+    SNR_tot = np.full((1, n_gates), np.nan)
+    BETA_tot = np.full((1, n_gates), np.nan)
+    SIGMA_tot = np.full((1, n_gates), np.nan)
+
+    if len(time_ds) != 0:
+        print('nrt L2 processing...')
+
+        indicator, n_rays, azi_mean, azi_edges = find_num_dir(n_rays, calc_idx, azimuth, 0)
+        # azimuth[azimuth>azi_edges[0]]= azimuth[azimuth>azi_edges[0]]-3
+        # azi_edges[0]= azi_edges[0]-360
+        r_phi = 360/(n_rays)/2 
+        if ~indicator:
+            print('some issue with the data', n_rays, len(azi_mean), time_start[0])
+        else:
+
+            VR = dv
+            SNR = snr
+            BETA = beta
+            azi = azimuth
+            ele = elevation           
+
+            VR_CNSmax = np.full((len(azi_mean),n_gates), np.nan)
+            VR_CNSunc = np.full((len(azi_mean),n_gates), np.nan)
+            # SNR_CNS= np.full((len(azi_mean),n_gates), np.nan)
+            BETA_CNS = np.full((len(azi_mean),n_gates), np.nan)
+            SIGMA_CNS = np.full((len(azi_mean),n_gates), np.nan)
+            # azi_CNS= np.full((len(azi_mean),n_gates), np.nan)
+            ele_cns = np.full((len(azi_mean),), np.nan)
+
+            for ii, azi_i in enumerate(azi_mean):
+                # azi_idx = (azi>=azi_edges[ii])*(azi<azi_edges[ii+1])
+                azi_idx = (np.mod(360-np.mod(np.mod(azi-azi_i, 360)-r_phi, 360), 360)<=2*r_phi)
+                ele_cns[ii] = np.median(ele[azi_idx])
+                ## calculate consensus average
+                VR_CNSmax[ii,:], idx_tmp, VR_CNSunc[ii,:] = consensus(VR[azi_idx]
+                                                                        #   , np.ones(SNR[azi_idx].shape)
+                                                                        , SNR[azi_idx], BETA[azi_idx]
+                                                                        , int(confDict['CNS_RANGE'])
+                                                                        , int(confDict['CNS_PERCENTAGE'])
+                                                                        , int(confDict['SNR_THRESHOLD'])
+                                                                        , B)
+                # next line is just experimental and might be useful in the future                                                                          )
+                # azi_CNS[ii,:]= np.array([np.nanmean(azi[azi_idx][xi]) for xi in idx_tmp.T])
+                # SNR_CNS[ii,:]= np.nanmean( np.where( idx_tmp
+                #                                , SNR[azi_idx]
+                #                                , np.nan)
+                #                          , axis=0)
+                SNR_tmp = SNR[azi_idx]
+                sigma_tmp = calc_sigma_single(in_db(SNR[azi_idx]), M, n, 2 * B, 1.316)
+                # Probably an error in the calculation, but this is what's written in the IDL-code
+                # here: MRSE (mean/root/sum/square)
+                # I woulf recommend changing it to RMSE (root/mean/square)
+                # SIGMA_CNS[ii,:] = np.sqrt(np.nansum( np.where( idx_tmp
+                #                                              , sigma_tmp**2
+                #                                              , np.nan)
+                #                                     , axis=0)
+                #                         )/np.sum(idx_tmp, axis=0)
+                SIGMA_CNS[ii,:] = np.ma.divide( np.sqrt( np.nansum( np.where( idx_tmp
+                                                                            , sigma_tmp**2
+                                                                            , np.nan)
+                                                                    , axis=0))
+                                                , np.sum(idx_tmp, axis=0)
+                                                )
+                ## calculate BETA, with consensus indices
+                # BETA_CNS[ii,:]= np.nanmean(np.where(idx_tmp
+                #                            ,BETA[azi_idx]
+                #                            ,np.nan), axis=0) 
+
+    #     # This approach avoids looping over all range gates, but the method is not as stable
+            n_good_kk = (~np.isnan(VR_CNSmax)).sum(axis=0)
+            # NVRAD[0, :] = (~np.isnan(VR_CNSmax)).sum(axis=0)
+            n_good[0, :] = n_good_kk
+            V_r=np.ma.masked_where( (np.isnan(VR_CNSmax)) #& (np.tile(n_good_kk, (azi_mean.shape[0], 1)) < 4)
+                                , VR_CNSmax).T[..., None]
+            mask_V_in = (np.isnan(VR_CNSmax)) | (np.tile(n_good_kk, (azi_mean.shape[0], 1)) < 4)
+            V_in=np.ma.masked_where( mask_V_in, VR_CNSmax)
+            A = build_Amatrix(azi_mean, ele_cns)
+            # A[abs(A)<1e-3] = 0
+            A_r = np.tile( A,  (VR_CNSmax.shape[1], 1, 1))
+            A_r_MP = np.tile( np.linalg.pinv(A), (VR_CNSmax.shape[1],1,1))
+            A_r_MP_T = np.einsum('...ij->...ji', A_r_MP)
+            SIGMA_r = np.ma.masked_where(np.isnan(VR_CNSmax), SIGMA_CNS).T
+
+
+            condi = np.isnan(VR_CNSmax)
+            A = np.round(build_Amatrix(azi_mean, ele_cns), 6)
+            U, S, Vh = [], [], []
+            for c_nn in condi.T:
+                u, s, vh = np.linalg.svd( np.ma.masked_where( np.tile(c_nn, (3, 1)).T
+                                                            , A).filled(0)
+                                        , full_matrices=True)
+
+                U.append(u)
+                S.append(np.linalg.pinv(diagsvd(s,u.shape[0],vh.shape[0])))
+                Vh.append(vh)
+            U, S, Vh = np.array(U), np.array(S), np.array(Vh)
+
+
+            U_T = np.einsum('...ij->...ji', U)
+            Vh_T = np.einsum('...ij->...ji', Vh)
+            K1 = np.nansum((U_T * V_in.T[:, None, :]), axis=2)[..., None]
+            K2 = np.einsum('...ik,...kj->...ij', S, K1)
+
+            V_k = np.einsum('...ik,...kj->...ij', Vh_T, K2)
+            UVW[0, ...] = np.squeeze(V_k)
+            # plausible winds can only be calculated, when the at least three LOS measurements are present
+            UVW[0, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
+
+            UVWunc[0, ...]= abs(np.einsum('...ii->...i', np.sqrt((A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r**2) @ A_r_MP_T).astype(complex)).real))
+            # plausible winds can only be calculated, when the at least three LOS measurements are present
+            UVWunc[0, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4 , :] = np.squeeze(np.full((3,1), np.nan))
+
+            V_r_est = A_r @ V_k
+            ss_e = ((V_r-V_r_est)**2).sum(axis = 1)
+            ss_t = ((V_r-V_r.mean(axis=1)[:, None, :])**2).sum(axis = 1)
+            R2[0, :] = np.squeeze(1 - ss_e/ss_t)
+            # R2[0, :] = 1 - (1 - R2[0, :]) * (np.sum(~np.isnan(VR_CNSmax.T), axis=1)-1)/(np.sum(~np.isnan(VR_CNSmax.T), axis=1)-2)  
+            # sqe = ((V_r_est-V_r_est.mean(axis=1)[:, None, :])**2).sum(axis = 1)
+            # sqt = ((V_r-V_r.mean(axis=1)[:, None, :])**2).sum(axis = 1)
+            # R2[0, :] = np.squeeze(sqe/sqt)
+            R2[0, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4] = np.nan
+
+
+            mask_A = np.tile( mask_V_in.T[..., None], (1, 1, 3))
+            # A_r_m = np.ma.masked_where( mask_A, A_r)
+            A_r_T = np.einsum('...ij->...ji', A_r)
+            Spp =  np.apply_along_axis(np.diag, 1, 1/np.sqrt(np.einsum('...ii->...i', A_r_T @ A_r)))
+            Z = np.ma.masked_where( mask_A, A_r @ Spp)
+            CN[0, :] =  np.squeeze(np.array([CN_est(X) for X in Z]))
+            # CN[0, :] = np.array([CN_est(X) for X in A_r_m])
+            CN[0, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4] = np.nan
+
+            SPEED[0, :], SPEEDunc[0, :] = np.vstack([np.fromiter(uvw_2_spd(val, unc).values(), dtype=float) for val, unc in zip(UVW[0, ...], UVWunc[0, ...])]).T
+            DIREC[0, :], DIRECunc[0, :] = np.vstack([np.fromiter(uvw_2_dir(val, unc).values(), dtype=float) for val, unc in zip(UVW[0, ...], UVWunc[0, ...])]).T
+
+    ## do quality control
+    speed = np.copy(SPEED)
+    errspeed = np.copy(SPEEDunc)
+    wdir = np.copy(DIREC)
+    errwdir = np.copy(DIRECunc)
+    r2 = np.copy(R2)
+    cn = np.copy(CN)
+    nvrad = np.copy(n_good)
+    u = np.copy(UVW[:,:,0])
+    v = np.copy(UVW[:,:,1])
+    w = np.copy(UVW[:,:,2])
+    erru = np.copy(UVWunc[:,:,0])
+    errv = np.copy(UVWunc[:,:,1])
+    errw = np.copy(UVWunc[:,:,2])
+
+    qspeed = (~np.isnan(SPEED))#*(abs(w)<.3*np.sqrt(np.nanmedian(u)**2+np.nanmedian(v)**2))
+    r2[np.isnan(R2)] = -999.
+    qr2 = r2>=float(confDict['R2_THRESHOLD'])
+    cn[np.isnan(CN)] = +999.
+    qcn = (cn >= 0) & (cn<=float(confDict['CN_THRESHOLD']))
+    nvrad[np.isnan(n_good)] = -999
+    qnvrad = nvrad>=int(confDict['N_VRAD_THRESHOLD'])
+
+    qwind = qspeed & qnvrad & qcn & qr2
+    qu = np.copy(qspeed)
+    qv = np.copy(qspeed)
+    qw = np.copy(qspeed)
+    # qspeed = qspeed & qnvrad
+    # qspeed = qwind
+    speed[~qspeed] = -999.
+    errspeed[~qspeed] = -999.
+    wdir[~qspeed] = -999.
+    errwdir[~qspeed] = -999.
+    u[~qspeed] = -999.
+    v[~qspeed] = -999.
+    w[~qspeed] = -999.
+    erru[~qspeed] = -999.
+    errv[~qspeed] = -999.
+    errw[~qspeed] = -999.
+    r2[~qspeed] = -999.
+    cn[~qspeed] = -999.
+    nvrad[~qspeed] = -999.        
+
+
+    if np.all(np.isnan(speed)):
+        print('WARNING: bad retrieval quality')
+        print('all retrieved velocities are NaN -> check nvrad threshold!')
+    ## save processed data to netCDF
+
+    ## add configuration used to create the file
+    configuration = """"""
+    for dd in confDict:
+        if not dd in ['PROC_PATH', 'NC_L1_PATH', 'NC_L2_PATH', 'NC_L2_QL_PATH']:
+            configuration += dd + '=' + confDict[dd]+'\n'
+    if 'BLINDZONE_GATES' in confDict:
+        NN = int(confDict['BLINDZONE_GATES'])
+    else:
+        NN = 0
+    
+    ds = create_ds(configuration, NN, speed, qwind, qu, qv, qw, errspeed, u, erru, v, errv, w, errw, wdir, errwdir, r2, nvrad, cn, elevation, azimuth, height, time_bnds, height_bnds, time_start, confDict, width, height)
+    return ds
+
 def create_ds(configuration, NN, speed, qwind, qu, qv, qw, errspeed, u, erru, v, errv, w, errw, wdir, errwdir, r2, nvrad, cn, lat, lon, zsl, time_bnds, height_bnds, time_start, confDict, width, height):
     ds = xr.Dataset({'config': ([]
                                 , configuration
