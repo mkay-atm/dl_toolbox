@@ -568,6 +568,15 @@ def lvl2wcdbs(ds_comb, date_chosen, confDict):
 
 
 def lvl2vad_nrt(ds_tmp, date_chosen, confDict):
+    '''
+    Essentially, this function is a copy of the original one nrtlvl2 in "hpl2netCDF_client.py". 
+    The main differences are:
+    1. The input is directly an xarray dataset, instead of a file path which enables to follow the same processing steps as the lvl2_from_filelist pipeline.
+    2. The start_dt and end_dt are defined from the input dataset, instead of the time_chosen variable. 
+    3. Creation of the final ds is done in separate function (create_ds) to avoid code repetition.
+    This is because at the moment, time_chosen is used to define the ds_tmp dataset in the previous step (combine_lvl1_to_ds).
+    '''
+    
     #time_chosen = self.date2proc + datetime.timedelta(hours=time_delta)
    
     # read lidar parameters
