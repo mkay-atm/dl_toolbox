@@ -153,7 +153,7 @@ class hpl2netCDFClient(object):
         print(ds_tmp.info)
         ds_tmp.close()
         
-    def lvl2_from_filelist(self, filelist, infile_prefix='XXX_', version_in_filename=False, time_chosen=None):
+    def lvl2_from_filelist(self, filelist, infile_prefix='XXX_', version_in_filename=False, time_chosen=None, nrt=False):
         """generate file containing wind field time series from list of raw input files
 
         Args:
@@ -167,7 +167,7 @@ class hpl2netCDFClient(object):
         confDict = config.gen_confDict(url=self.config_dir)
         files_hpl = hpl_files.filelist_to_hpl_files(filelist, confDict['SYSTEM'], infile_prefix)
         ds_tmp = hpl_files.combine_lvl1_to_ds(files_hpl, confDict, date_chosen, time_chosen=time_chosen)
-        ds_lvl2 = process_dataset(ds_tmp, date_chosen, confDict)
+        ds_lvl2 = process_dataset(ds_tmp, date_chosen, confDict, nrt)
         ds_lvl2.attrs['scan_type'] = confDict['SCAN_TYPE']
 
         # to output file
