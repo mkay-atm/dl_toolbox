@@ -25,8 +25,7 @@ from hpl2netCDF_client.hpl_files.hpl_files import hpl_files
 from hpl2netCDF_client.config.config import config
 from scipy.linalg import diagsvd
 
-from hpl2netCDF_client.main_proc import process_dataset, write_netcdf, add_attributes
-from hpl2netCDF_client.wind_proc import create_ds
+from hpl2netCDF_client.main_proc import process_dataset, write_netcdf
 from hpl2netCDF_client.plot_helpers import ql_helper
 from hpl2netCDF_client.signal_calc import in_db, CN_est
 from hpl2netCDF_client.wind_calc import build_Amatrix, uvw_2_spd, uvw_2_dir, calc_sigma_single, consensus, find_num_dir
@@ -154,7 +153,7 @@ class hpl2netCDFClient(object):
         print(ds_tmp.info)
         ds_tmp.close()
         
-    def lvl2_from_filelist(self, filelist, infile_prefix='XXX_', version_in_filename=False, time_chosen=None, nrt=False):
+    def lvl2_from_filelist(self, filelist, infile_prefix='XXX_', version_in_filename=False, time_chosen=None):
         """generate file containing wind field time series from list of raw input files
 
         Args:
@@ -168,7 +167,7 @@ class hpl2netCDFClient(object):
         confDict = config.gen_confDict(url=self.config_dir)
         files_hpl = hpl_files.filelist_to_hpl_files(filelist, confDict['SYSTEM'], infile_prefix)
         ds_tmp = hpl_files.combine_lvl1_to_ds(files_hpl, confDict, date_chosen, time_chosen=time_chosen)
-        ds_lvl2 = process_dataset(ds_tmp, date_chosen, confDict, nrt)
+        ds_lvl2 = process_dataset(ds_tmp, date_chosen, confDict)
         ds_lvl2.attrs['scan_type'] = confDict['SCAN_TYPE']
 
         # to output file
@@ -869,9 +868,314 @@ class hpl2netCDFClient(object):
             NN = int(confDict['BLINDZONE_GATES'])
         else:
             NN = 0
-        
-        ds_lvl2 = create_ds(configuration, NN, speed, qwind, qu, qv, qw, errspeed, u, erru, v, errv, w, errw, wdir, errwdir, r2, nvrad, cn, elevation, azimuth, height, time_bnds, height_bnds, time_start, confDict, width, height)
-        ds_lvl2 = add_attributes(ds_lvl2, confDict)
+        ds_lvl2= xr.Dataset({ 'config': ([]
+                                        , configuration
+                                        , {'standard_name' : 'configuration_file'}
+                                        )
+                            , 'wspeed': (['time', 'height']
+                                        , np.float32(speed[:, NN:])
+                                        , {'units': 'm s-1'
+                                        , 'comments': 'Scalar wind speed (amount of vector)'
+                                        , 'standard_name' : 'wind_speed'
+                                        , 'long_name' : 'Wind Speed' 
+                                        ,'_FillValue' : -999.
+                                        }
+                                        )
+                            , 'qwind': (['time', 'height']
+                                        , qwind[:, NN:].astype(np.int8)
+                                        , {'comments' : str('quality flag 0 or 1 for u, v, w, wspeed, wdir and corresponding errors,'
+                                            + '(good quality data = WHERE( R2 > ' + confDict['R2_THRESHOLD'] 
+                                            + 'AND CN < ' + confDict['CN_THRESHOLD'] 
+                                            + 'AND NVRAD > '+ confDict['N_VRAD_THRESHOLD']  + ')')
+                                        ,'long_name': 'wind_quality_flag'
+                                        ,'_FillValue': np.array(-128).astype(np.int8)
+                                        ,'flag_values': np.arange(0,2).astype(np.int8)
+                                        ,'flag_meanings': 'quality_bad quality_good'
+                                        }
+                                        )
+                            , 'qu': (['time', 'height']
+                                        , qu[:, NN:].astype(np.int8)
+                                        , {'comments' : 'quality flag 0 or 1 for u and corresponding error'
+                                        ,'long_name': 'quality_flag_u'
+                                        ,'_FillValue': np.array(-128).astype(np.int8)
+                                        ,'flag_values': np.arange(0,2).astype(np.int8)
+                                        ,'flag_meanings': 'quality_bad quality_good'
+                                        }
+                                        )
+                            , 'qv': (['time', 'height']
+                                        , qv[:, NN:].astype(np.int8)
+                                        , {'comments' : 'quality flag 0 or 1 for v and corresponding error'
+                                        ,'long_name': 'quality_flag_v'
+                                        ,'_FillValue': np.array(-128).astype(np.int8)
+                                        ,'flag_values': np.arange(0,2).astype(np.int8)
+                                        ,'flag_meanings': 'quality_bad quality_good'
+                                        }
+                                        )
+                            , 'qw': (['time', 'height']
+                                        , qw[:, NN:].astype(np.int8)
+                                        , {'comments' : 'quality flag 0 or 1 for w and corresponding error'
+                                        ,'long_name': 'quality_flag_w'
+                                        ,'_FillValue': np.array(-128).astype(np.int8)
+                                        ,'flag_values': np.arange(0,2).astype(np.int8)
+                                        ,'flag_meanings': 'quality_bad quality_good'
+                                        }
+                                        )                         
+                            ,'errwspeed': (['time', 'height']
+                                        , np.float32(errspeed[:, NN:])
+                                        , {'units': 'm s-1'
+                                        , 'standard' : 'wind_speed_uncertainty'
+                                        , 'long_name' : 'Wind Speed Uncertainty'
+                                        , '_FillValue' : -999.
+                                        }
+                                        )
+                            ,'u': (['time', 'height']
+                                        , np.float32(u[:, NN:])
+                                        , {'units': 'm s-1'
+                                        , 'comments': '"Eastward indicates" a vector component which is positive when directed eastward (negative westward). Wind is defined as a two-dimensional (horizontal) air velocity vector, with no vertical component'
+                                        , 'standard_name' : 'eastward_wind'
+                                        , 'long_name' : 'Zonal Wind'
+                                        , '_FillValue' : -999.
+                                        }
+                                        )
+                            ,'erru': (['time', 'height']
+                                        , np.float32(erru[:, NN:])
+                                        , {'units': 'm s-1'
+                                        , 'standard_name' : 'eastward_wind_uncertainty'
+                                        , 'long_name' : 'Zonal Wind Uncertainty'
+                                        ,'_FillValue' : -999.
+                                        }
+                                        )
+                            ,'v': (['time', 'height']
+                                        , np.float32(v[:, NN:])
+                                        , {'units': 'm s-1'
+                                        , 'comments': '"Northward indicates" a vector component which is positive when directed northward (negative southward). Wind is defined as a two-dimensional (horizontal) air velocity vector, with no vertical component'
+                                        , 'standard_name' : 'northward_wind'
+                                        , 'long_name' : 'Meridional Wind'
+                                        ,'_FillValue' : -999.
+                                        }
+                                        )
+                            ,'errv': (['time', 'height']
+                                        , np.float32(errv[:, NN:])
+                                        , {'units': 'm s-1'
+                                        , 'standard_name' : 'northward_wind_uncertainty'
+                                        , 'long_name' : 'Meridional Wind Uncertainty'
+                                        , '_FillValue' : -999.
+                                        }
+                                        )
+                            ,'w': (['time', 'height']
+                                        , np.float32(w[:, NN:])
+                                        , {'units': 'm s-1'
+                                        , 'comments': 'Vertical wind component, positive when directed upward (negative downward)'
+                                        , 'standard_name' : 'upward_air_velocity'
+                                        , 'long_name' : 'Upward Air Velocity'
+                                        , '_FillValue' : -999.
+                                        }
+                                        )
+                            ,'errw': (['time', 'height']
+                                        , np.float32(errw[:, NN:])
+                                        , {'units': 'm s-1'
+                                        , 'standard_name' : 'upward_air_velocity_uncertainty'
+                                        , 'long_name' : 'Upward Air Velocity Uncertainty'
+                                        ,'_FillValue' : -999.
+                                        }
+                                        )
+                            ,'wdir': (['time', 'height']
+                                        , np.float32(wdir[:, NN:])
+                                        , {'units': 'degree'
+                                        , 'comments': 'Wind direction'
+                                        , 'standard_name' : 'wind_from_direction'
+                                        , 'long_name' : 'Wind Direction'
+                                        ,'_FillValue' : -999.
+                                        }
+                                        )
+                            ,'errwdir': (['time', 'height']
+                                        , np.float32(errwdir[:, NN:])
+                                        , {'units': 'degree'
+                                        , 'standard_name' : 'wind_direction_uncertainty'
+                                        , 'long_name' : 'Wind Direction Uncertainty'
+                                        , '_FillValue' : -999.
+                                        }
+                                        )
+                            ,'r2': (['time', 'height']
+                                        , np.float32(r2[:, NN:])
+                                        , {'comments' : 'coefficient of determination - provides a measure of how well observed radial velocities are replicated by the model used to determine u,v,w wind components from the measured line of sight radial velocities'
+                                            , 'long_name': 'coefficient of determination'
+                                            , 'standard_name': 'coefficient_of_determination'
+                                            , 'units': '1'
+                                            , '_FillValue': -999.
+                                        }
+                                        )  
+                            ,'nvrad': (['time', 'height']
+                                        , np.float32(nvrad[:, NN:])
+                                        , { 'comments' : 'number of (averaged) radial velocities used for wind calculation'
+                                            , 'long_name': 'number of radial velocities'
+                                            , 'standard_name': 'no_radial_velocities'
+                                            , 'units': '1'
+                                            , '_FillValue': -999.
+                                        }
+                                        )  
+                            ,'cn': (['time', 'height']
+                                        , np.float32(cn[:, NN:])
+                                        , {'comments' : 'condition number - provides a measure for the degree of collinearity among the Doppler velocity measurements used for the retrieval of the wind variables (u,v,w,speed,direction).'
+
+                                           , 'standard_name': 'condition_number'
+                                           , 'long_name': 'Condition Number'
+                                           , 'units': '1'
+                                           , '_FillValue': -999.
+                                        }
+                                        ) 
+                            , 'lat': ([]
+                                        , np.float32(confDict['SYSTEM_LATITUDE'])
+                                        , {'units': 'degrees_north'
+                                        ,'long_name': 'latitude'
+                                        ,'standard_name': 'latitude'
+                                        ,'comments': 'latitude of sensor'
+                                        ,'_FillValue': -999.
+                                        }
+                                        )  
+                            , 'lon': ([]
+                                        , np.float32(confDict['SYSTEM_LONGITUDE'])
+                                        , {'units': 'degrees_east'
+                                        ,'long_name': 'longitude'
+                                        ,'standard_name': 'longitude'
+                                        ,'comments': 'longitude of sensor'
+                                        ,'_FillValue': -999.
+                                        }
+                                        )  
+                            , 'zsl': ([]
+                                        , np.float32(confDict['SYSTEM_ALTITUDE'])
+                                        , {'units': 'm'
+                                        ,'comments': 'Altitude of sensor above mean sea level'
+                                        ,'standard_name': 'altitude'
+                                        ,'_FillValue': -999.
+                                        }
+                                        )
+                            ,'time_bnds': (['time','nv']
+                                            ,time_bnds.T.astype(np.float64)
+                                            ,{'units': 'seconds since 1970-01-01 00:00:00 UTC'                                         
+                                            }
+                                            )
+                            ,'height_bnds': (['height','nv']
+                                            # ,np.array([(np.arange(0,n_gates)
+                                            #             * float(confDict['RANGE_GATE_LENGTH'])*np.sin(np.nanmedian(elevation)*np.pi/180))
+                                            #             ,((np.arange(0,n_gates) + 1.)
+                                            #             * float(confDict['RANGE_GATE_LENGTH'])*np.sin(np.nanmedian(elevation)*np.pi/180))
+                                            #             ]).T
+                                            , np.float32(height_bnds[NN:, :])
+                                            ,{'units': 'm'                                         
+                                            }
+                                            )
+                            ,'frequency': ([]
+                                , np.float32(299792458 / float(confDict['SYSTEM_WAVELENGTH']))
+                                , {  'units': 'Hz'
+                                    ,'comments': 'lidar operating frequency'
+                                    ,'long_name': 'instrument_frequency'
+                                    ,'_FillValue': -999.
+                                  }
+                                )                
+                            ,'vert_res': ([]
+                                        , np.float32(np.diff(height).mean())
+                                        ,{ 'units': 'm'
+                                          ,'comments': 'Calculated from pulse wdth and beam elevation'
+                                          ,'long_name': 'Vertical_resolution_measurement'
+                                          ,'_FillValue': -999.
+                                         }
+                                        )                
+                            ,'hor_width': (['height']
+                                            # ,np.array([(np.arange(0,n_gates)
+                                            #             * float(confDict['RANGE_GATE_LENGTH'])*np.sin(np.nanmedian(elevation)*np.pi/180))
+                                            #             ,((np.arange(0,n_gates) + 1.)
+                                            #             * float(confDict['RANGE_GATE_LENGTH'])*np.sin(np.nanmedian(elevation)*np.pi/180))
+                                            #             ]).T
+                                        , np.float32(width[NN:])
+                                        ,{ 'units': 'm'
+                                          ,'comments': 'Calculated from beam elevation and height'
+                                          ,'standard_name': 'horizontal_sample_width'
+                                          ,'_FillValue': -999.
+                                         }
+                                        )
+                            }
+                            , coords= { 'height': (['height']
+                                                    # ,((np.arange(0,n_gates)+.5)*int(confDict['RANGE_GATE_LENGTH'])
+                                                    # *np.sin(np.nanmedian(elevation)*np.pi/180))
+                                                    , np.float32(height[NN:])
+                                                    ,{'units': 'm'
+                                                    ,'standard_name': 'height'
+                                                    ,'comments': 'vertical distance from sensor to centre of range gate'
+                                                    ,'bounds': 'height_bnds'
+                                                    }
+                                                )
+                                        , 'time': ( ['time']
+                                                , time_start.astype(np.float64)
+                                                , {  'units': 'seconds since 1970-01-01 00:00:00'
+                                                    ,'comments': 'Timestamp at the end of the averaging interval'
+                                                    ,'standard_name': 'time'
+                                                    ,'long_name': 'Time'
+                                                    ,'calendar':'gregorian'
+                                                    ,'bounds': 'time_bnds'
+                                                    ,'_CoordinateAxisType': 'Time'
+                                            })
+                                        ,'nv': (['nv'], np.arange(0,2).astype(np.int8))
+                                        }
+                        )
+
+        ds_lvl2.attrs['title']= confDict['NC_TITLE']
+        ds_lvl2.attrs['institution']= confDict['NC_INSTITUTION']
+        ds_lvl2.attrs['site_location']= confDict['NC_SITE_LOCATION']
+        ds_lvl2.attrs['source']= confDict['NC_SOURCE']
+        ds_lvl2.attrs['instrument_type']= confDict['NC_INSTRUMENT_TYPE']
+        ds_lvl2.attrs['instrument_mode']= confDict['NC_INSTRUMENT_MODE']
+        if 'NC_INSTRUMENT_FIRMWARE_VERSION' in confDict:
+            ds_lvl2.attrs['instrument_firmware_version']= confDict['NC_INSTRUMENT_FIRMWARE_VERSION']
+        else:
+            ds_lvl2.attrs['instrument_firmware_version']= 'N/A'
+
+        if 'NC_INSTRUMENT_ID' in confDict:
+            ds_lvl2.attrs['instrument_id']= confDict['NC_INSTRUMENT_ID']
+        else:
+            ds_lvl2.attrs['instrument_id']= 'N/A'    
+        ds_lvl2.attrs['instrument_contact']= confDict['NC_INSTRUMENT_CONTACT']
+        # ds_lvl2.attrs['Source']= "HALO Photonics Doppler lidar (production number: " + confDict['SYSTEM_ID'] + ')'
+        # ds_lvl2.attrs['history']= confDict['NC_HISTORY']
+        ds_lvl2.attrs['conventions']= confDict['NC_CONVENTIONS']
+        ds_lvl2.attrs['processing_date']= str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
+        # ds_lvl2.attrs['author']= confDict['NC_AUTHOR']
+        # ds_lvl2.attrs['licence']= confDict['NC_LICENCE']
+        ds_lvl2.attrs['data_policy']= confDict['NC_DATA_POLICY']
+
+        # attributes for operational use of netCDFs, see E-Profile wind profiler netCDF version 1.7
+        if 'NC_WIGOS_STATION_ID' in confDict:
+            ds_lvl2.attrs['wigos_station_id']= confDict['NC_WIGOS_STATION_ID']
+        else:
+            ds_lvl2.attrs['wigos_station_id']= 'N/A'
+
+        if 'NC_WMO_ID' in confDict:
+            ds_lvl2.attrs['wmo_id']= confDict['NC_WMO_ID']
+        else:
+            ds_lvl2.attrs['wmo_id']= 'N/A'
+
+        if 'NC_PI_ID' in confDict:
+            ds_lvl2.attrs['principal_investigator']= confDict['NC_PI_ID']
+        else:
+            ds_lvl2.attrs['principal_investigator']= 'N/A'
+
+        if 'NC_INSTRUMENT_SERIAL_NUMBER' in confDict:
+            ds_lvl2.attrs['instrument_serial_number']= confDict['NC_INSTRUMENT_SERIAL_NUMBER']
+        else:
+            ds_lvl2.attrs['instrument_serial_number']= ' '
+
+        ds_lvl2.attrs['history']= confDict['NC_HISTORY'] + ' version ' + confDict['VERSION'] + ' on ' + str(pd.to_datetime(datetime.datetime.now())) + ' UTC'
+
+        if 'OPERATIONAL' in confDict:
+            if bool(int(confDict['OPERATIONAL'])):
+                # Blocking statur, only important for operational use
+                ds_lvl2.attrs['references']= confDict['NC_REFERENCES'] #'Doppler lidar PPI-based retrieval, see VAD'
+                ds_lvl2.attrs['data_blocking_status']= confDict['NC_DATA_BLOCKING_STATUS']
+                # set all uncertainties to NaN-Value
+                for item in ['erru', 'errv', 'errw', 'errwspeed', 'errwdir']:
+                    ds_lvl2[item] = ds_lvl2[item].where(ds_lvl2[item] == -999., other=-999.)
+        #             ds_lvl2[item] = ds_lvl2[item].where(np.isnan(ds_lvl2[item]), other=np.nan)
+        ds_lvl2.attrs['comments']= confDict['NC_COMMENTS']
 
         path= Path(confDict['NC_L2_PATH'])
         path.mkdir(parents=True, exist_ok=True)  
