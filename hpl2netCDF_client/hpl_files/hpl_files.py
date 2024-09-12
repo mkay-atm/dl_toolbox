@@ -82,7 +82,7 @@ class hpl_files(object):
         if inst_type.lower() == 'halo':
             if base_filename is None:
                 len_basename_parts = 2
-            ind_date = slice(len_basename_parts, None)
+            ind_date = slice(len_basename_parts+2, len_basename_parts+4, None)
         elif inst_type.lower() == 'windcube':
             if base_filename is None:
                 len_basename_parts = 1
@@ -973,3 +973,4 @@ class hpl_files(object):
                                        , 'nv': (['nv'],np.arange(0,2).astype(np.int8))
                                       }
                             )
+            

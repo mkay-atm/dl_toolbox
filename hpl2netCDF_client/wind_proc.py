@@ -43,11 +43,15 @@ def lvl2vad_standard(ds_tmp, date_chosen, confDict):
     else:
         time_offset = np.timedelta64(0, 'h')
         time_delta = 0
-
+    
     time_vec = np.arange(date_chosen - datetime.timedelta(hours=time_delta)
                          , date_chosen + datetime.timedelta(days=1) - datetime.timedelta(hours=time_delta)
                          + datetime.timedelta(minutes=int(confDict['AVG_MIN']))
                          , datetime.timedelta(minutes=int(confDict['AVG_MIN'])))
+    if not isinstance(time_ds[0], type(time_vec[0])):
+        # time_ds should be a datetime as this points, which is not the case and makes the following line fail
+        # One idea can be to correct it at creation (in hpl_files.py) but this might break other things...
+        time_ds = [datetime.datetime.fromtimestamp(t) for t in time_ds]
     calc_idx = [np.where((ii <= time_ds) * (time_ds < iip1))
                 for ii, iip1 in zip(time_vec[0:-1], time_vec[1::])]
     time_start = np.array([int(pd.to_datetime(time_ds[t[0][-1]]).replace(tzinfo=datetime.timezone.utc).timestamp())
@@ -89,7 +93,7 @@ def lvl2vad_standard(ds_tmp, date_chosen, confDict):
     SIGMA_tot = np.full((len(calc_idx), n_gates), np.nan)
 
     for kk in time_valid:
-        print('processed ' + str(np.floor(100 * kk / (len(calc_idx) - 1))) + ' %')
+        #print('processed ' + str(np.floor(100 * kk / (len(calc_idx) - 1))) + ' %')
         # read lidar parameters
         n_rays = int(confDict['NUMBER_OF_DIRECTIONS'])
         indicator, n_rays, azi_mean, azi_edges = find_num_dir(n_rays, calc_idx, azimuth, kk)
@@ -281,7 +285,7 @@ def lvl2vad_standard(ds_tmp, date_chosen, confDict):
         NN = 0
 
     ## save processed data to xarray dataset
-    return xr.Dataset({'config': ([]
+    ds = xr.Dataset({'config': ([]
                                   , configuration
                                   , {'standard_name': 'configuration_file'}
                                   )
@@ -537,6 +541,8 @@ def lvl2vad_standard(ds_tmp, date_chosen, confDict):
             , 'nv': (['nv'], np.arange(0, 2).astype(np.int8))
                                 }
                       )
+    # Keeping only calculation indices that are not empty:
+    return ds.isel(time=time_valid)
 
 
 def lvl2wcdbs(ds_comb, date_chosen, confDict):
@@ -601,7 +607,6 @@ def lvl2wcdbs(ds_comb, date_chosen, confDict):
     # infer number of directions
     # don't forget to check for empty calc_idx
     time_valid = [ii for ii, x in enumerate(calc_idx) if len(x[0]) != 0]
-
     UVW = np.full((len(calc_idx), n_gates, 3), np.nan)
     UVWunc = np.full((len(calc_idx), n_gates, 3), np.nan)
     SPEED = np.full((len(calc_idx), n_gates), np.nan)
@@ -618,7 +623,7 @@ def lvl2wcdbs(ds_comb, date_chosen, confDict):
     # time_ds = time[np.where(ds)]
 
     for kk in time_valid:
-        print('processed ' + str(np.floor(100 * kk / (len(calc_idx) - 1))) + ' %')
+        #print('processed ' + str(np.floor(100 * kk / (len(calc_idx) - 1))) + ' %')
         # read lidar parameters
         n_rays = int(confDict['NUMBER_OF_DIRECTIONS'])
         indicator, n_rays, azi_mean, azi_edges = find_num_dir(n_rays, calc_idx, azimuth, kk)
@@ -813,7 +818,7 @@ def lvl2wcdbs(ds_comb, date_chosen, confDict):
     else:
         NN = 0
 
-    return xr.Dataset({'config': ([]
+    ds = xr.Dataset({'config': ([]
                                   , configuration
                                   , {'standard_name': 'configuration_file'}
                                   )
@@ -1069,3 +1074,5 @@ def lvl2wcdbs(ds_comb, date_chosen, confDict):
             , 'nv': (['nv'], np.arange(0, 2).astype(np.int8))
                                 }
                       )
+    # Keeping only calculation indices that are not empty:
+    return ds.isel(time=time_valid)
