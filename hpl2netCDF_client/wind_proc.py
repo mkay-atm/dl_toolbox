@@ -191,9 +191,16 @@ def lvl2vad_standard(ds_tmp, date_chosen, confDict):
             UVW[kk, ...] = np.squeeze(V_k)
             # plausible winds can only be calculated, when the at least three LOS measurements are present
             UVW[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4, :] = np.squeeze(np.full((3, 1), np.nan))
-
-            UVWunc[kk, ...] = abs(np.einsum('...ii->...i', np.sqrt(
-                (A_r_MP @ np.apply_along_axis(np.diag, 1, SIGMA_r ** 2) @ A_r_MP_T).astype(complex)).real))
+            
+            UVWunc[kk, ...] = abs(
+                np.einsum(
+                    '...ii->...i',
+                    np.sqrt(
+                        np.einsum('nik,nk,nkl->nil', A_r_MP, SIGMA_r ** 2, A_r_MP_T).astype(complex)
+                    ).real
+                )
+            )
+            
             # plausible winds can only be calculated, when the at least three LOS measurements are present
             UVWunc[kk, np.sum(~np.isnan(VR_CNSmax.T), axis=1) < 4, :] = np.squeeze(np.full((3, 1), np.nan))
 
