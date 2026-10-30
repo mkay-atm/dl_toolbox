@@ -33,7 +33,6 @@ def valid_date(s):
         raise argparse.ArgumentTypeError(msg)
 
 def main():
-    default_path = "C:/Users/mkayser/Documents/Notebooks/wl_testing/wl_44_markus.conf"
     parser = argparse.ArgumentParser(
                                     description='Process Halo photonics Doppler lidar Client',
                                     formatter_class=argparse.RawTextHelpFormatter
@@ -41,21 +40,27 @@ def main():
     # parser.add_argument('--version', action='version', version='%(prog)s v' + __version__)
     parser.add_argument('-u', '--url', dest="path2config",
                         type=str, help="path to configuration file",
-                            default=default_path)
+                        required=True)
     parser.add_argument("-d", "--date", nargs='+'
                         , help="The Date - format YYYY-mm-dd or use nrt for near real time processing using data from the last AVG_MIN minutes prior to calling the client"
                         , required=True, type=valid_date
                         )
-    parser.add_argument('-c', '--cmd', required=True, choices=['hpl_l1', 'l1_l2','hpl_l1_l2','l1_l2wql','hpl_l1_l2wql','l1wql','l2wql','hpl_l1_l2nrt','hpl_l2nrt'],
+    parser.add_argument('-c', '--cmd', required=True, choices=['hpl_l1', 'l1_l2','hpl_l1_l2','l1_l2wql','hpl_l1_l2wql'
+                                                               ,'l1wql','l2wql'
+                                                               ,'hpl_l1_l2nrt','hpl_l2nrt'
+                                                               ,'l1_stare_l2','l1_stare_l2wql','starewql'],
         help=textwrap.dedent(\
         '''Send a command. Supported commands:
         hpl_l1 - combines daily lvl1 files to netCDF
         l1_l2 - processes existing lvl1 netCDF files and combines to lvl2 netCDF
         hpl_l1_l2 - combines hpl to daily and processes directly to lvl2 netCDF
         hpl_l1_l2wql - combines hpl to daily and processes directly to lvl2 netCDF and creates quicklooks
-        l1_l2wql - combines hpl to daily and processes directly to lvl2 netCDF and creates quicklooks
+        l1_l2wql - processes existing lvl1 to lvl2 and creates quicklooks
         l1wql - takes lvl1 netCDF file and creates backscatter quicklook
-        l2wql - takes lvl2 netCDF file and creates backscatter quicklook
+        l2wql - takes wind lvl2 netCDF file and creates wind quicklook
+        l1_stare_l2 - creates stare lvl2 NetCDF from stare lvl1 and wind lvl2
+        l1_stare_l2wql - creates stare lvl2 and three quicklooks
+        starewql - creates three quicklooks from existing stare lvl2
         Note that directory paths will be taken from the configuration file!''')
         )
     
@@ -93,3 +98,9 @@ def main():
         proc_dl.nrtlvl1()
         proc_dl.nrtlvl2()
         proc_dl.rmlvl1()
+    if args.cmd == 'l1_stare_l2':
+        proc_dl.dailystare()
+    if args.cmd == 'l1_stare_l2wql':
+        proc_dl.dailystarewql()
+    if args.cmd == 'starewql':
+        proc_dl.stareql()

@@ -1,68 +1,109 @@
-# Documentation - dl_toolbox
+# DL Toolbox (`hpl2netCDF_client`)
 
-##### Table of Contents  
-- [Description](#desc)  
-- [Usage](#usage) 
-    - [Generic example](#generic_example)
-    - [Streamline VAD](#streamline_example)
-    - [Windcube DBS](#windcube_example)
-	- [Other scan types](#other_scans)
+**Experimental development branch** — Python tools for processing ground-based Doppler wind lidar measurements to NetCDF Level-1 (L1) and Level-2 (L2) products.
 
+The toolbox supports Halo Photonics Stream Line instruments and selected Vaisala/Leosphere WindCube workflows. Its established pathways create daily L1 files, retrieve wind from supported scanning strategies, apply quality control, and generate quicklooks. This branch additionally contains an **experimental vertical-stare turbulence retrieval**.
 
-<a name="desc"/></a>
-## Description
-Python software package for standardized processing Doppler wind lidar data. (Note: the client is originally designed for Halo Photonics systems, but the latest version makes it applicaple to windcube lidars. Please, read the corresponding settings sections.)
+> **Development status:** This is not a validated operational release. Validate retrieved quantities, especially turbulent kinetic energy dissipation rate (`epsilon`), against independent observations before scientific or operational use.
 
-<a name="usage"/></a>
-## Usage
-1.	Go to the directory where the package is located and install the client via `pip install`. If installation was not successful, please contact Markus.Kayser@dwd.de
-  
-2.	After the successful installation the client can be used through parsing the following commands:
+## Capabilities
 
-	You need to specify a valid date with either `-d` or `-date` and a command to execute with `-c` or `-cmd`.
-	The following commands are valid:
-		- `hpl_l1` creates a daily netCDF file of lvl1 .hpl-files.
-		- `l1_l2` processes a daily lvl1 netCDF file according to the VAD retrieval described in Päschke et al. [2015].
-		- `hpl_l1_l2` creates daily lvl1 and lvl2 netCDF files from .hpl-files.
-        Note: In case of lvl2 processing you can add `...wql` to the command to create quicklooks.
-	You have to specify a custom configuration file in order for the routines to locate .hpl-files and give directories of lvl1 	and lvl2 netCDFs as well as of quicklooks.
-    
-    The routines will create a data path corresponding to the path specified in the configuration file plus the time 		information, i.e. `yourpath/YYYY/YYYYMM`.
-	This is done with the command `-u` or `-url`, followed by the path to the configuration file, including the file name.
-    
-<a name="generic_example"/></a>
-### Geneneric example
-The use can start processing with the client by inserting the following command into the terminal.
-		`hpl2netCDF-client -u "configuration file" -d "specify date as YYYY-MM-DD" -c "cmd"`	
-If an error occurs at this stage, please make sure that the package is installed and that python 3.XX is in the system path.
-<a name="streamline_example"/></a>
-### Streamline VAD
-The user needs to adjust the configuration file in the following way:
-1. Make sure that "SCAN_TYPE" refers to the section of the filenames, either "VAD" or "User" plus a number. Otherwise the client is not able to find the desired .hpl-files.
-2. Please copy the meta data attributes that can found in the .hpl header into the corresponding entries of the configuration file, i.e. number of gates, range gate length, pulses/ray, etc.
-3. Adjust the processing parameters, used for filtering and quality control, to the user needs. These are: "AVG_MIN", "CN_THRESHOLD", "CNS_RANGE", "CNS_PERCENTAGE", "SNR_THRESHOLD", "N_VRAD_THRESHOLD", and "R2_THRESHOLD".
-An example file is part of this repository, just have a look at "wl_44_cns_60_snr22.conf". This file is used to process a VAD with 24 directions applying consensus and snr filtering.
+- **L1:** daily NetCDF assembly from supported Halo `.hpl` and WindCube `.nc` data.
+- **Wind L2:** `u`, `v`, `w`, wind speed and direction for supported VAD/DBS scans, with uncertainty estimates, SNR/backscatter diagnostics, fit quality (`r2`), condition number (`cn`), valid radial-velocity counts (`nvrad`), and quality flags (`qwind`).
+- **Quicklooks:** wind profiles and backscatter.
+- **Experimental stare L2:** screened vertical Doppler velocity, vertical-velocity variance, noise correction, `epsilon`, associated quality information, optional estimated uncertainties, and three stare quicklooks.
 
-<a name="windcube_example"/></a>
-### Windcube DBS
-With the latest windcube release in October 2022 a new system software was introduced that now enables VAD scan pattern and also an additional range mode, called "TP-mode". This can create issues with the processing client not yet accounted for. Therefore, windcube-users are strongly encouraged to test this toolbox and report issues on github. Helping users to setup processing of windcube DBS data, we recommend the following steps:
-1. Look at the individual windcube netCDF files and make note of the scan type, here dbs, the range gate length and wether or not, TP-mode is active. The latter two are found at the end of the file name. Set the SCAN_TYPE entry to "DBS_TP" and the RANGE_GATE_LENGTH to whatever number the filename states, e.g. 50 for 50 m length.
-2. Check the individual netCDFs to fill in the remaining meta data, i.e. number of gates, etc. Note, that the current software leaves out a lot of the meta data. So the user has to fill in the gaps.
-3. Make sure that the DBS configuration states NUMBER_OF_DIRECTIONS=			4 and that the N_VRAD_THRESHOLD is either 3 or 4. Generally, a threshold greater than the number of directions results in a LV2 file containing only NaN-values.
-Note, if your individual filenames do not contain "TP", the SCAN_TYPE entry should be just "DBS". Please look at the example configuration file "wc_233_DBS_cns_60_snr00.conf" and adjust it to your needs.
+Not all instrument/scan-mode combinations have a complete L2 implementation.
 
-<a name="other_scans"/></a>
-### Other scan types
-Even though a LV2-processing for other scan types is not implemented, users can still make use of this toolbox to compile daily LV1 netCDFs. Therefor, they have to follow the previously mentioned steps of identifying configuration parameters from the filenames and from meta data contained in the files. The following table helps the users to make these adjustments and states what products are available.
+## Install
 
-| System  | SCAN_TYPE  | LV1  | LV2  | Quicklooks  |
-| :---  | :---:  | :---:  | :---:  | ---: |
-| Streamline  | VAD <br /> UserX  | yes  | yes  | LV1 / LV2 |
-| Streamline  | DBS <br /> UserX  | yes  | yes  | LV1 / LV2 |
-| Streamline  | Stare  | yes  | no  | LV1 |
-| Streamline  | RHI  | yes  | no  | no |
-| Windcube  | fixed_VAD <br /> fixed_VAD_TP <br /> VAD <br /> VAD_TP| yes  | yes  | LV1 / LV2 |
-| Windcube  | DBS <br /> DBS_TP | yes  | yes  | LV1 / LV2 |
-| Windcube  | fixed/Stare <br /> fixed_TP/Stare_TP| yes  | no  | LV1 |
-| Windcube  | RHI <br /> RHI_TP | yes  | no  | no |
-| Windcube  | PPI <br /> PPI_TP| yes  | no  | no |
+```bash
+git clone <repository-url>
+cd <repository-directory>
+git switch <development-branch>
+python -m venv .venv
+# Activate .venv (for example: source .venv/bin/activate on Linux/macOS)
+python -m pip install --upgrade pip
+python -m pip install -e .
+hpl2netCDF-client --help
+```
+
+The Python package is named `hpl2netCDF_client`; the installed CLI is `hpl2netCDF-client`. Dependencies are declared in `setup.py` (including NumPy, SciPy, pandas, xarray, netCDF4, and Matplotlib). Platform/Python-version compatibility has not been systematically tested.
+
+## Standard wind-processing workflow
+
+Adapt a supplied configuration file (`wl_template.conf`, `wl_44_cns_60_snr_22.conf`, or `wc_233_DBS_cns_60_snr_00.conf`). Specify instrument metadata, scan geometry, file paths, filename prefixes, averaging, and quality-control thresholds.
+
+```bash
+# Convert raw measurements to daily L1 NetCDF
+hpl2netCDF-client -u path/to/site.conf -d 2024-07-20 -c hpl_l1
+
+# Retrieve L2 winds from the existing daily L1 file
+hpl2netCDF-client -u path/to/site.conf -d 2024-07-20 -c l1_l2
+
+# Combined L1 + L2 + quicklooks
+hpl2netCDF-client -u path/to/site.conf -d 2024-07-20 -c hpl_l1_l2wql
+```
+
+The input and output directories follow the configuration; daily NetCDF paths conventionally include `YYYY/YYYYMM/`. Use `--help` for additional CLI commands, including near-real-time variants. Those variants are not verified in this documentation update.
+
+## Experimental vertical-stare workflow
+
+**Inputs:** (1) a daily **stare L1** NetCDF file containing `dv`, `intensity`, `time`, and `range`; and (2) a daily **wind L2** NetCDF file with horizontal wind speed `wspeed` and compatible time/height coverage. L1 stare observations **alone are not sufficient** for the `epsilon` retrieval.
+
+A supplied real-world example is the AWI Halo Stream Line XR+ stare dataset for **2024-07-20** (instrument S/N 288, 8,873 profiles × 250 range gates). The repository-ready configuration is in [`examples/stare_awi_288.conf`](examples/stare_awi_288.conf), and detailed setup, input checks, outputs, and caveats are documented in **[`docs/stare-processing.md`](docs/stare-processing.md)**.
+
+After preparing the two inputs and editing their directory roots:
+
+```bash
+hpl2netCDF-client -u examples/stare_awi_288.conf -d 2024-07-20 -c l1_stare_l2
+```
+
+To create the stare product **and its three quicklooks** in one step:
+
+```bash
+hpl2netCDF-client -u examples/stare_awi_288.conf -d 2024-07-20 -c l1_stare_l2wql
+```
+
+To generate **only quicklooks** from an already processed stare L2 file (no wind L2 input is needed for this step):
+
+```bash
+hpl2netCDF-client -u examples/stare_awi_288.conf -d 2024-07-20 -c starewql
+```
+
+The equivalent Python API is:
+
+```python
+from datetime import datetime
+from hpl2netCDF_client.hpl2netCDF_client import hpl2netCDFClient
+
+client = hpl2netCDFClient(
+    "examples/stare_awi_288.conf", "l1_stare_l2", datetime(2024, 7, 20)
+)
+l2_file, quicklook_files = client.dailystarewql()
+```
+
+**CLI fixed in this branch:** `starewql` now reads an existing daily stare L2 file and writes quicklooks; `l1_stare_l2wql` executes both processing and plotting. Quicklook names honor `NC_STARE_L2_QL_BASENAME`.
+
+## Testing
+
+```bash
+python -m pip install pytest
+python -m pytest -q
+```
+
+The included tests exercise CLI dispatch, daily filename creation, configuration parsing, wind-speed gap-fill provenance, and generation of all three quicklooks using synthetic fixtures. They do not establish physical accuracy. A full-day computational test using **observed** AWI stare L1 and VAD wind L2 from 2024-07-20 is recorded in [the observed-data validation report](docs/observed-validation-20240720.md), with example outputs distributed separately from the repository source. These observational files are not included in the source tree. Scientific validation of epsilon is still outstanding.
+
+## Development and limitations
+
+- **Stare validation:** the uploaded AWI L1 file was inspected, and the retrieval functions ran on a small sample with an *artificial* supporting wind field (computational smoke test only). A matching observed wind L2 file was not available for end-to-end or physical validation.
+- **Sampling:** AWI data have a median sampling interval near 6.22 s, compared with the supplied configuration's `STARE_SAMPLE_SPACING_SECONDS=6.0`. Nontrivial time gaps mean the effective sample count must be checked.
+- **Turbulence parameters:** the beam-divergence angle convention, screening parameters, and uncertainty assumptions require scientific review; see the stare guide.
+- **Maintenance:** the included regression tests cover the stare command paths and plots; wind/near-real-time modes still need regression tests and scientifically validated reference data.
+- **Licensing:** the root `LICENSE` says BSD-3-Clause, whereas `setup.py` and some source headers say “Non-commercial use only.” Reconcile these statements before releasing or submitting to JOSS.
+
+Please report reproducible problems through GitHub Issues with the instrument, scan mode, config, and a minimal permissible input sample.
+
+## License
+
+The repository includes a BSD-3-Clause `LICENSE` file, but contains contradictory source/package notices that need resolution by the rights holder before public release. This code revision does **not** change the original license texts.

@@ -1,8 +1,37 @@
+from __future__ import annotations
+
 import itertools as it
 import operator as op
 
 import numpy as np
 
+def nanmax_where_valid_2d(a):
+    valid = np.any(np.isfinite(a), axis=0)
+    out = np.full(a.shape[1], np.nan)
+    if np.any(valid):
+        out[valid] = np.nanmax(a[:, valid], axis=0)
+    return out
+
+def nanmin_where_valid_2d(a):
+    valid = np.any(np.isfinite(a), axis=0)
+    out = np.full(a.shape[1], np.nan)
+    if np.any(valid):
+        out[valid] = np.nanmin(a[:, valid], axis=0)
+    return out
+
+def nanmedian_where_valid_2d(a):
+    valid = np.any(np.isfinite(a), axis=0)
+    out = np.full(a.shape[1], np.nan)
+    if np.any(valid):
+        out[valid] = np.nanmedian(a[:, valid], axis=0)
+    return out
+
+def nanmean_where_valid_2d(a):
+    valid = np.any(np.isfinite(a), axis=0)
+    out = np.full(a.shape[1], np.nan)
+    if np.any(valid):
+        out[valid] = np.nanmean(a[:, valid], axis=0)
+    return out
 
 def build_Amatrix(azimuth_vec,elevation_vec):
     return np.einsum('ij -> ji',
@@ -82,6 +111,25 @@ def log10_inf(x):
     result[x<0] = -float('Inf')
     return result
 
+def parse_float_list(value):
+    """
+    Convert a comma-separated config string to a list of floats.
+
+    Example:
+        "30, 60, 120" -> [30.0, 60.0, 120.0]
+    """
+    if value is None:
+        return []
+
+    if isinstance(value, (list, tuple)):
+        return [float(v) for v in value]
+
+    value = str(value).strip()
+
+    if value == "":
+        return []
+
+    return [float(v.strip()) for v in value.split(",") if v.strip() != ""]
 
 def consensus_mean(Vr,SNR,CNS_range,CNS_percentage,SNR_threshold):
     if SNR_threshold < 0:
@@ -307,6 +355,19 @@ def find_num_dir(n_rays,calc_idx,azimuth,idx_valid):
             print('not enough valid directions!-->skip non-convergent time windows' )
             return np.all(check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[0]), n_rays, check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[1], check_num_dir(n_rays,calc_idx,azimuth,idx_valid)[2]
 
+def set_azi_dir(n_rays, calc_idx, azimuth, idx_valid, confDict):
+    # check for possible constant offset in azimuth
+    if confDict['SCAN_TYPE'].lower() == 'csm':
+        azi_offset = 0
+    else:
+        vals, counts = np.unique(np.mod(azimuth, 360/n_rays), return_counts=True)
+        azi_offset = vals[np.argmax(counts)].round() # assumed to be an integer
+    # check if each direction contains at least three measurements
+    h, be = np.histogram(np.mod(azimuth[calc_idx[idx_valid]]-azi_offset,360), bins=2*n_rays, range=(0, 360))
+    counts = np.sum(np.r_[h[-1], h[:-1]].reshape(-1, 2), axis=1) # rotate and sum
+    edges = np.r_[np.r_[be[-2], be[:-2]][::2], be[-2]]         # rotate and skip
+    kk_idx= counts >= 3
+    return np.all(kk_idx), np.arange(0,360,360//n_rays)+azi_offset
 
 # def calc_node_degree(Vr,CNS_range):
 #     '''takes masked array as input'''

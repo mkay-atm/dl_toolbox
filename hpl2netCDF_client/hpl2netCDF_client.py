@@ -5,6 +5,7 @@ DWD-Pilotstation software source code file
 
 by Markus Kayser. Non-commercial use only.
 '''
+from __future__ import annotations
 
 import numpy as np
 import pandas as pd
@@ -26,9 +27,11 @@ from hpl2netCDF_client.config.config import config
 from scipy.linalg import diagsvd
 
 from hpl2netCDF_client.main_proc import process_dataset, write_netcdf
+from hpl2netCDF_client.stare_proc import build_stare_l2_filename, run_stare_l2_daily
 from hpl2netCDF_client.plot_helpers import ql_helper
 from hpl2netCDF_client.signal_calc import in_db, CN_est
 from hpl2netCDF_client.wind_calc import build_Amatrix, uvw_2_spd, uvw_2_dir, calc_sigma_single, consensus, find_num_dir
+from hpl2netCDF_client.stare_ql import write_stare_l2_quicklooks
 
 
 ### functions used for plotting
@@ -108,9 +111,7 @@ class hpl2netCDFClient(object):
         confDict= config.gen_confDict(url= self.config_dir)
         print(confDict)
 
-            ## do processiong!!
-
-
+            ## do processiong!!   
 
     def dailylvl1(self):
         date_chosen = self.date2proc
@@ -202,6 +203,23 @@ class hpl2netCDFClient(object):
         ds=xr.open_dataset(path)
         print(ds.info)
         ds.close()
+
+    def l2_stare_filename(self):
+        """Return the configured daily stare L2 filename without creating a directory."""
+        confDict = config.gen_confDict(url=self.config_dir)
+        return build_stare_l2_filename(confDict, self.date2proc, create_dir=False)
+
+    def dailystare(self, overwrite=True):
+        """Create daily Level-2 stare product using configured stare L1 input and configured Level-2 wind product as support field."""
+        date_chosen = self.date2proc
+        confDict= config.gen_confDict(url= self.config_dir)
+        outfile = run_stare_l2_daily(
+            date_chosen=date_chosen,
+            confDict=confDict,
+            overwrite=overwrite,
+                            )
+        print(f"written stare L2 file: {outfile}")
+        return outfile
 
     def lvl2ql(self):
         date_chosen = self.date2proc
@@ -370,11 +388,11 @@ class hpl2netCDFClient(object):
             ## save wind quicklook           
             path= Path(confDict['NC_L2_QL_PATH'] + '/' + date_chosen.strftime('%Y') + '/' + date_chosen.strftime('%Y%m'))
             print('saving wind retrieval quicklook as... \n ... '
-                    + str('{}/' + confDict['NC_L2_BASENAME'] + 'ql_' + date_chosen.strftime('%Y%m%d') 
-                    + '_' + str(confDict['AVG_MIN']) + 'min' + '.png').format(path)
+                    + str('{}' / Path(confDict['NC_L2_BASENAME'] + 'ql_' + date_chosen.strftime('%Y%m%d') 
+                    + '_' + str(confDict['AVG_MIN']) + 'min' + '.png')).format(path)
                  )
             path.mkdir(parents=True,exist_ok=True)
-            fig.savefig(str('{}/' + confDict['NC_L2_BASENAME'] + 'ql_' + date_chosen.strftime('%Y%m%d') + '_' + str(confDict['AVG_MIN']) + 'min' + '.png').format(path)
+            fig.savefig(str('{}' / Path(confDict['NC_L2_BASENAME'] + 'ql_' + date_chosen.strftime('%Y%m%d') + '_' + str(confDict['AVG_MIN']) + 'min' + '.png')).format(path)
                         ,transparent=False, bbox_inches='tight')
 
     def bckql(self):
@@ -490,11 +508,11 @@ class hpl2netCDFClient(object):
             ## save wind quicklook
             path= Path(confDict['NC_L2_QL_PATH'] + '/' + date_chosen.strftime('%Y') + '/' + date_chosen.strftime('%Y%m') + '/')
             print('saving backscatter quicklook as... \n ... '
-                    + str('{}' + confDict['NC_L2_BASENAME'] + 'bck_ql_' + date_chosen.strftime('%Y%m%d') 
-                    + '_cycle_max' + '.png').format(path)
+                    + str('{}' / Path(confDict['NC_L2_BASENAME'] + 'bck_ql_' + date_chosen.strftime('%Y%m%d') 
+                    + '_cycle_max' + '.png')).format(path)
                  )
             path.mkdir(parents=True,exist_ok=True)
-            fig.savefig(str('{}/' + confDict['NC_L2_BASENAME'] + 'bck_ql_' + date_chosen.strftime('%Y%m%d') + '_cycle_max' + '.png').format(path)
+            fig.savefig(str('{}' / Path(confDict['NC_L2_BASENAME'] + 'bck_ql_' + date_chosen.strftime('%Y%m%d') + '_cycle_max' + '.png')).format(path)
                         ,transparent=False, bbox_inches='tight')
 
     def nrtlvl1(self):
@@ -1202,3 +1220,20 @@ class hpl2netCDFClient(object):
         ds=xr.open_dataset(path)
         print(ds.info)
         ds.close()
+
+
+    def stareql(self):
+        """Create quicklooks from an existing daily stare L2 NetCDF file."""
+        confDict = config.gen_confDict(url=self.config_dir)
+        l2_file = Path(self.l2_stare_filename())
+        if not l2_file.is_file():
+            raise FileNotFoundError(f"Missing stare L2 file for quicklooks: {l2_file}")
+        ql_files = write_stare_l2_quicklooks(str(l2_file), self.date2proc, confDict)
+        print(f"written stare quicklooks: {ql_files}")
+        return ql_files
+
+    def dailystarewql(self, overwrite=True):
+        """Create the daily stare L2 NetCDF and three quicklooks."""
+        outfile = self.dailystare(overwrite=overwrite)
+        ql_files = self.stareql()
+        return outfile, ql_files

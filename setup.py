@@ -4,27 +4,30 @@ DWD-Pilotstation software source code file
 
 by Markus Kayser. Non-commercial use only.
 '''
-from setuptools import setup
+from setuptools import find_packages, setup
 
 with open('hpl2netCDF_client/version.py') as f:
     exec(f.read())
 
+with open('README.md', encoding='utf-8') as f:
+    readme = f.read()
+
 
 setup(name='hpl2netCDF_client',
       version=__version__,
-      description='Halo photonics Doppler lidar to netCDF',
+      description='Doppler lidar Level-1 and Level-2 processing toolbox',
+      long_description=readme,
+      long_description_content_type='text/markdown',
       url='http://lglxs408.dwd.de:8000/webtools/iserver/mol1/dial/',
       author='Markus Kayser',
       license='Non-commercial use only',
-      packages=['hpl2netCDF_client','hpl2netCDF_client.hpl_files','hpl2netCDF_client.config'],
+      packages=find_packages(),
+      python_requires='>=3.10',
       install_requires=[
           'numpy',
           'scipy',
           'xarray >= 0.17.0',
           'pandas',
-          'datetime',
-          'argparse',
-          'pathlib',
           'netcdf4',
           'matplotlib',
           #'pyqt5==5.9.2',

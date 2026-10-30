@@ -110,10 +110,10 @@ class hpl_files(object):
     
     @staticmethod
     def split_header(string):
-        return [x.strip() for x in re.split('[:\=\-]', re.sub('[\n\t]','',string),1)]
+        return [x.strip() for x in re.split(r'[:=\-]', re.sub('[\n\t]','',string),1)]
     @staticmethod
     def split_data(string):
-        return re.split('\s+', re.sub('\n','',string).strip())
+        return re.split(r'\s+', re.sub('\n','',string).strip())
     #switch_str = {True: split_header(line), False: split_data(line)}
     @staticmethod
     def split_default(string):

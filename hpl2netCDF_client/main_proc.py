@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 
 import numpy as np
@@ -5,7 +7,7 @@ import pandas as pd
 import xarray as xr
 
 from hpl2netCDF_client.wind_proc import lvl2vad_standard, lvl2wcdbs
-
+# from hpl2netCDF_client.stare_proc import lvl2stare_halo, lvl2stare_windcube
 
 def process_dataset(ds_tmp, date_chosen, confDict):
     if confDict['SYSTEM'].lower() == 'windcube':
@@ -38,9 +40,7 @@ def process_dataset(ds_tmp, date_chosen, confDict):
             ds_lvl2 = lvl2vad_standard(ds_tmp, date_chosen, confDict)
         if ('stare' in confDict['SCAN_TYPE'].lower()):
             print("processing 'Streamline-Stare' setting!")
-            print("coming soon!")
-            # create place holder dataset
-            ds_lvl2 = xr.Dataset()
+            ds_lvl2 = lvl2stare_halo(ds_tmp, ds_wind, date_chosen, confDict)
     ds_lvl2.attrs['title'] = confDict['NC_TITLE']
     ds_lvl2.attrs['institution'] = confDict['NC_INSTITUTION']
     ds_lvl2.attrs['site_location'] = confDict['NC_SITE_LOCATION']
