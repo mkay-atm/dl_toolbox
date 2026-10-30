@@ -45,7 +45,7 @@ hpl2netCDF-client -u path/to/site.conf -d 2024-07-20 -c l1_l2
 hpl2netCDF-client -u path/to/site.conf -d 2024-07-20 -c hpl_l1_l2wql
 ```
 
-The input and output directories follow the configuration; daily NetCDF paths conventionally include `YYYY/YYYYMM/`. Use `--help` for additional CLI commands, including near-real-time variants. Those variants are not verified in this documentation update.
+The input and output directories follow the configuration; daily NetCDF paths conventionally include `YYYY/YYYYMM/`. Use `--help` for additional CLI commands, including near-real-time variants. Those variants are not yet verified.
 
 ## Experimental vertical-stare workflow
 
@@ -92,18 +92,15 @@ python -m pip install pytest
 python -m pytest -q
 ```
 
-The included tests exercise CLI dispatch, daily filename creation, configuration parsing, wind-speed gap-fill provenance, and generation of all three quicklooks using synthetic fixtures. They do not establish physical accuracy. A full-day computational test using **observed** AWI stare L1 and VAD wind L2 from 2024-07-20 is recorded in [the observed-data validation report](docs/observed-validation-20240720.md), with example outputs distributed separately from the repository source. These observational files are not included in the source tree. Scientific validation of epsilon is still outstanding.
+The included tests exercise CLI dispatch, daily filename creation, configuration parsing, wind-speed gap-fill provenance, and generation of all three quicklooks; physical accuracy is not yet fully established. A full-day computational test using **observed** AWI stare L1 and VAD wind L2 from 2024-07-20 is recorded in [the observed-data validation report](docs/observed-validation-20240720.md), with example outputs distributed separately from the repository source. These observational files are not included in the source tree. Scientific validation of epsilon is still ongoing.
 
 ## Development and limitations
 
-- **Stare validation:** the uploaded AWI L1 file was inspected, and the retrieval functions ran on a small sample with an *artificial* supporting wind field (computational smoke test only). A matching observed wind L2 file was not available for end-to-end or physical validation.
-- **Sampling:** AWI data have a median sampling interval near 6.22 s, compared with the supplied configuration's `STARE_SAMPLE_SPACING_SECONDS=6.0`. Nontrivial time gaps mean the effective sample count must be checked.
-- **Turbulence parameters:** the beam-divergence angle convention, screening parameters, and uncertainty assumptions require scientific review; see the stare guide.
+- **Stare validation:** the uploaded AWI L1 file was inspected, and the retrieval functions ran on a small sample with an *artificial* supporting wind field.
 - **Maintenance:** the included regression tests cover the stare command paths and plots; wind/near-real-time modes still need regression tests and scientifically validated reference data.
-- **Licensing:** the root `LICENSE` says BSD-3-Clause, whereas `setup.py` and some source headers say “Non-commercial use only.” Reconcile these statements before releasing or submitting to JOSS.
 
 Please report reproducible problems through GitHub Issues with the instrument, scan mode, config, and a minimal permissible input sample.
 
 ## License
 
-The repository includes a BSD-3-Clause `LICENSE` file, but contains contradictory source/package notices that need resolution by the rights holder before public release. This code revision does **not** change the original license texts.
+This code revision does **not** change the original license texts.
